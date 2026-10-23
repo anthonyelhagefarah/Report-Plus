@@ -223,6 +223,69 @@ function openCamera(onCapture) {
   });
 }
 
+// ---------- Visor de foto a pantalla completa (pellizcar para ampliar, arrastrar para mover) ----------
+function openViewer(blob) {
+  const ov = document.createElement('div');
+  ov.className = 'viewer';
+  const url = URL.createObjectURL(blob);
+  ov.innerHTML = `<img src="${url}" alt="" draggable="false"><button class="viewer-close" aria-label="Cerrar">✕</button><div class="viewer-hint">Pellizca para ampliar · doble toque para acercar</div>`;
+  document.body.appendChild(ov); document.body.classList.add('noscroll');
+  const img = $('img', ov);
+  let scale = 1, tx = 0, ty = 0, lastTap = 0;
+  const pts = new Map();
+  let start = null;
+  const apply = () => { img.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`; };
+  const clamp = () => {
+    scale = Math.min(8, Math.max(1, scale));
+    if (scale === 1) { tx = 0; ty = 0; }
+  };
+  const close = () => { ov.remove(); document.body.classList.remove('noscroll'); URL.revokeObjectURL(url); };
+  $('.viewer-close', ov).onclick = close;
+  const snapshot = () => {
+    const [a, b] = [...pts.values()];
+    start = { scale, tx, ty, a: { ...a }, d: b ? Math.hypot(b.x - a.x, b.y - a.y) : 0, mid: b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } : { ...a } };
+  };
+  ov.addEventListener('pointerdown', e => {
+    if (e.target.closest('button')) return;
+    ov.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    snapshot();
+    if (pts.size === 1) {
+      const now = Date.now();
+      if (now - lastTap < 300) {
+        const r = ov.getBoundingClientRect();
+        if (scale > 1) { scale = 1; tx = ty = 0; }
+        else { scale = 2.5; tx = -(e.clientX - r.width / 2) * 1.5; ty = -(e.clientY - r.height / 2) * 1.5; }
+        img.style.transition = 'transform .2s'; apply(); setTimeout(() => { img.style.transition = ''; }, 220);
+        lastTap = 0; return;
+      }
+      lastTap = now;
+    }
+  });
+  ov.addEventListener('pointermove', e => {
+    if (!pts.has(e.pointerId) || !start) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const [a, b] = [...pts.values()];
+    if (b && start.d) {
+      const d = Math.hypot(b.x - a.x, b.y - a.y);
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const r = ov.getBoundingClientRect();
+      const ns = Math.min(8, Math.max(1, start.scale * d / start.d));
+      const cx = start.mid.x - r.width / 2, cy = start.mid.y - r.height / 2;
+      tx = mid.x - r.width / 2 - (cx - start.tx) * ns / start.scale;
+      ty = mid.y - r.height / 2 - (cy - start.ty) * ns / start.scale;
+      scale = ns;
+    } else if (scale > 1) {
+      tx = start.tx + (a.x - start.a.x); ty = start.ty + (a.y - start.a.y);
+    }
+    apply();
+  });
+  const up = e => { pts.delete(e.pointerId); clamp(); apply(); if (pts.size) snapshot(); else start = null; };
+  ov.addEventListener('pointerup', up);
+  ov.addEventListener('pointercancel', up);
+  ov.addEventListener('wheel', e => { e.preventDefault(); scale *= e.deltaY < 0 ? 1.15 : 1 / 1.15; clamp(); apply(); }, { passive: false });
+}
+
 // ---------- Vistas ----------
 async function viewClients() {
   setHeader('Clientes');
@@ -351,7 +414,7 @@ async function viewReport(id) {
             ${(it.type === 'video' ? it.thumb : (it.annotated || it.blob)) ? `<img loading="lazy" src="${objUrl(it.type === 'video' ? it.thumb : (it.annotated || it.blob))}" alt="">` : '<div class="noimg">🎥</div>'}
             ${it.type === 'video' ? `<span class="vbadge">▶ ${fmtDur(it.duration)}</span>` : ''}
             ${it.shapes?.length ? '<span class="abadge">✎</span>' : ''}
-            ${(it.caption || it.measure) ? `<span class="cap">${esc([it.caption, it.measure].filter(Boolean).join(' · '))}</span>` : ''}
+            ${(it.caption || it.measure) ? `<span class="cap">${esc([it.caption, it.measure].filter(Boolean).join(' · ').replace(/\n+/g, ' · '))}</span>` : ''}
           </a>`).join('')}</div>
         <div class="row add-row">
           <button data-a="cam">📸 Ráfaga</button>
@@ -484,8 +547,8 @@ async function viewItem(id) {
       <button id="next" ${idx >= siblings.length - 1 ? 'disabled' : ''}>Siguiente ›</button>
     </div>
     <section class="card">
-      <label>Descripción<textarea id="caption" rows="3" placeholder="Ej. Fisura en muro norte">${esc(it.caption)}</textarea></label>
-      <label>Medida<input id="measure" value="${esc(it.measure)}" placeholder="Ej. 2.35 m × 1.10 m"></label>
+      <label>Descripción<textarea id="caption" class="autogrow" rows="1" placeholder="Ej. Oficina">${esc(it.caption)}</textarea></label>
+      <label>Medidas <small>(una por línea)</small><textarea id="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36">${esc(it.measure)}</textarea></label>
       <label>Sección<select id="section">${r.sections.map(s => `<option value="${s.id}" ${s.id === it.sectionId ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}</select></label>
       <div class="row wrap">
         <button id="up">↑ Mover antes</button><button id="down">↓ Mover después</button>
@@ -499,7 +562,17 @@ async function viewItem(id) {
     it.caption = $('#caption').value.trim(); it.measure = $('#measure').value.trim(); it.sectionId = $('#section').value;
     await DB.put('items', it);
   };
-  ['caption', 'measure', 'section'].forEach(k => $('#' + k).addEventListener('change', save));
+  let saveTimer;
+  ['caption', 'measure'].forEach(k => {
+    const el = $('#' + k);
+    const grow = () => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; };
+    grow();
+    el.addEventListener('input', () => { grow(); clearTimeout(saveTimer); saveTimer = setTimeout(save, 400); });
+    el.addEventListener('change', save);
+  });
+  $('#section').addEventListener('change', save);
+  const mediaImg = $('.media img');
+  if (mediaImg) mediaImg.onclick = () => openViewer(it.annotated || it.blob);
   const go = async to => { await save(); location.hash = `#/i/${siblings[to].id}`; };
   $('#prev').onclick = () => go(idx - 1);
   $('#next').onclick = () => go(idx + 1);
@@ -628,6 +701,7 @@ async function route() {
   } catch (e) { console.error(e); view.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
   window.scrollTo(0, 0);
 }
+['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault()));
 $('#settingsBtn').onclick = () => { location.hash = '#/settings'; };
 window.addEventListener('hashchange', route);
 route();

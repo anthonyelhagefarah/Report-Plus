@@ -7,7 +7,7 @@
   :root { --bg: #11161c; --surface: #1b232c; --text: #e8edf2; --muted: #93a0ad; --line: #2c3743; --accent: #4aa3d8; }
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+html, body { touch-action: pan-x pan-y; margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 body.noscroll { overflow: hidden; }
 a { color: inherit; text-decoration: none; }
 .topbar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 8px; padding: calc(env(safe-area-inset-top) + 10px) 12px 10px; background: var(--accent); color: #fff; }
@@ -98,3 +98,11 @@ dialog h2 { margin-bottom: 6px; }
 .shutter { width: 74px; height: 74px; border-radius: 50%; background: #fff; border: 5px solid rgba(255,255,255,.5); background-clip: padding-box; }
 .camera.video-mode .shutter { background: #e53935; }
 .camera.recording .shutter { border-radius: 18px; transform: scale(.75); }
+
+textarea.autogrow { resize: none; overflow: hidden; min-height: 44px; }
+.media img { cursor: zoom-in; }
+/* Visor de foto */
+.viewer { position: fixed; inset: 0; z-index: 40; background: #000; display: grid; place-items: center; overflow: hidden; touch-action: none; }
+.viewer img { max-width: 100%; max-height: 100%; transform-origin: center center; user-select: none; -webkit-user-select: none; will-change: transform; }
+.viewer-close { position: absolute; top: calc(env(safe-area-inset-top) + 10px); right: 12px; background: rgba(255,255,255,.15); color: #fff; border: 0; font-size: 20px; width: 44px; height: 44px; border-radius: 50%; }
+.viewer-hint { position: absolute; bottom: calc(env(safe-area-inset-bottom) + 16px); color: #bbb; font-size: 13px; pointer-events: none; }

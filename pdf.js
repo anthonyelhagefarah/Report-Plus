@@ -91,7 +91,9 @@ const Exporter = (() => {
       }
     }
 
-    const gap = 5, captionH = 13;
+    const gap = 5;
+    const maxMeasures = Math.max(0, ...items.map(i => (i.measure || '').split('\n').filter(l => l.trim()).length));
+    const captionH = Math.min(30, 13 + Math.max(0, maxMeasures - 1) * 3.6);
     const cellW = (W - 2 * M - gap * (L.cols - 1)) / L.cols;
     let first = report.cover === false;
 
@@ -136,11 +138,18 @@ const Exporter = (() => {
           }
           doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(30);
           const num = items.indexOf(it) + 1;
-          const cap = [`${num}. ${it.caption || ''}`.trim(), it.measure && `Medida: ${it.measure}`].filter(Boolean).join('  ·  ');
-          doc.text(doc.splitTextToSize(cap, cellW).slice(0, 2), x, y + imgH + 4);
+          const capLines = doc.splitTextToSize(`${num}. ${(it.caption || '').replace(/\n+/g, ' ')}`.trim(), cellW).slice(0, 2);
+          const measures = (it.measure || '').split('\n').map(m => m.trim()).filter(Boolean);
+          const maxLines = Math.max(2, Math.floor((captionH - 1) / 3.6));
+          doc.text(capLines, x, y + imgH + 4);
+          if (measures.length) {
+            doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(50);
+            const ml = doc.splitTextToSize(`Medidas: ${measures[0]}`, cellW).concat(...measures.slice(1).map(m => doc.splitTextToSize(`• ${m}`, cellW)));
+            doc.text(ml.slice(0, maxLines - capLines.length), x, y + imgH + 4 + capLines.length * 3.8);
+          }
           if (it.type === 'video') {
             doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(120);
-            doc.text(`Archivo: ${videoFiles.get(it.id)}`, x, y + imgH + 11.5);
+            doc.text(`Archivo: ${videoFiles.get(it.id)}`, x, y + imgH + captionH - 1.5);
           }
         }
       }
