@@ -104,6 +104,32 @@ async function addMedia(report, sectionId, files) {
   toast(`${files.length} elemento(s) agregado(s)`);
 }
 
+// Ubicación GPS actual + dirección aproximada (OpenStreetMap).
+function getLocation() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('Este teléfono no permite obtener la ubicación'));
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+      let address = '', residential = '';
+      try {
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=es`);
+        const j = await r.json();
+        const a = j.address || {};
+        residential = a.residential || a.neighbourhood || a.suburb || a.quarter || '';
+        address = [[a.road, a.house_number].filter(Boolean).join(' '), a.suburb || a.neighbourhood, a.city || a.town || a.village, a.state].filter(Boolean).join(', ') || j.display_name || '';
+      } catch (e) { /* sin internet: se guardan solo las coordenadas */ }
+      resolve({ residential: residential, lat: +lat.toFixed(6), lng: +lng.toFixed(6), accuracy: Math.round(accuracy), address: address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`, at: Date.now() });
+    }, err => reject(new Error(err.code === 1 ? 'Permiso de ubicación denegado. Actívalo en los ajustes del navegador.' : 'No se pudo obtener la ubicación')), { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
+  });
+}
+const mapUrl = g => `https://www.google.com/maps?q=${g.lat},${g.lng}`;
+const geoLine = g => g ? `<div>🛰 <a href="${mapUrl(g)}" target="_blank" rel="noopener">${g.lat}, ${g.lng}</a> <small class="muted">(±${g.accuracy} m · ver en mapa)</small></div>` : '';
+
+async function withLocation(btn) {
+  const t = btn.textContent; btn.disabled = true; btn.textContent = 'Buscando ubicación…';
+  try { return await getLocation(); } catch (e) { toast(e.message, 5000); return null; } finally { btn.disabled = false; btn.textContent = t; }
+}
+
 function download(blob, name) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob); a.download = name;
@@ -207,7 +233,7 @@ async function viewClients() {
     <ul class="list" id="list">
       ${clients.map(c => `<li data-name="${esc(c.name.toLowerCase())}"><a href="#/c/${c.id}">
         <div class="avatar">${esc(c.name.slice(0, 1).toUpperCase())}</div>
-        <div class="grow"><b>${esc(c.name)}</b><small>${esc(c.address || c.phone || '')}</small></div>
+        <div class="grow"><b>${esc(c.name)}</b><small>${esc([c.address, c.residential].filter(Boolean).join(' · ') || c.phone || '')}</small></div>
         <span class="badge">${reports.filter(r => r.clientId === c.id).length}</span></a></li>`).join('')}
     </ul>
     ${clients.length ? '' : `<div class="empty"><p>Aún no tienes clientes.</p><p>Crea uno para empezar tu primer reporte con fotos y videos.</p></div>`}`;
@@ -227,6 +253,7 @@ async function viewClients() {
 const clientFields = c => [
   { name: 'name', label: 'Nombre', value: c.name, required: true },
   { name: 'address', label: 'Dirección', value: c.address },
+  { name: 'residential', label: 'Nombre del residencial', value: c.residential },
   { name: 'phone', label: 'Teléfono', value: c.phone, type: 'tel' },
   { name: 'email', label: 'Correo', value: c.email, type: 'email' },
   { name: 'notes', label: 'Notas', value: c.notes, type: 'textarea' },
@@ -240,9 +267,9 @@ async function viewClient(id) {
   view.innerHTML = `
     <section class="card">
       <div class="row"><div class="grow">
-        ${c.address ? `<div>📍 ${esc(c.address)}</div>` : ''}${c.phone ? `<div>📞 <a href="tel:${esc(c.phone)}">${esc(c.phone)}</a></div>` : ''}
+        ${c.address ? `<div>📍 ${esc(c.address)}</div>` : ''}${c.residential ? `<div>🏘 ${esc(c.residential)}</div>` : ''}${geoLine(c.geo)}${c.phone ? `<div>📞 <a href="tel:${esc(c.phone)}">${esc(c.phone)}</a></div>` : ''}
         ${c.email ? `<div>✉️ <a href="mailto:${esc(c.email)}">${esc(c.email)}</a></div>` : ''}${c.notes ? `<p class="muted">${esc(c.notes)}</p>` : ''}
-      </div><div class="col"><button id="edit">Editar</button><button id="del" class="danger">Eliminar</button></div></div>
+      </div><div class="col"><button id="here">📍 Estoy aquí</button><button id="edit">Editar</button><button id="del" class="danger">Eliminar</button></div></div>
     </section>
     <div class="toolbar"><h2 class="grow">Reportes</h2><button class="primary" id="add">+ Reporte</button></div>
     <ul class="list">
@@ -253,6 +280,12 @@ async function viewClient(id) {
     const v = await form('Editar cliente', clientFields(c)); if (!v) return;
     await DB.put('clients', { ...c, ...v, updatedAt: Date.now() }); route();
   };
+  $('#here').onclick = async e => {
+    const g = await withLocation(e.target); if (!g) return;
+    if (c.address && !confirm(`¿Reemplazar la dirección del cliente por:\n${g.address}?`)) { c.geo = g; } else { c.address = g.address; c.geo = g; }
+    if (!c.residential && g.residential) c.residential = g.residential;
+    await DB.put('clients', { ...c, updatedAt: Date.now() }); toast('Ubicación guardada'); route();
+  };
   $('#del').onclick = async () => {
     if (!confirm(`¿Eliminar a ${c.name} y todos sus reportes, fotos y videos?`)) return;
     await DB.deleteClient(id); location.hash = '#/';
@@ -261,6 +294,7 @@ async function viewClient(id) {
     const v = await form('Nuevo reporte', [
       { name: 'title', label: 'Título', value: `Inspección ${new Date().toLocaleDateString('es')}`, required: true },
       { name: 'location', label: 'Ubicación', value: c.address },
+      { name: 'gps', label: '📍 Guardar mi ubicación GPS actual', type: 'checkbox', value: true },
       { name: 'tpl', label: 'Plantilla de secciones', type: 'select', value: '', options: [['', 'Una sola sección (General)'], ...Object.keys(SECTION_TEMPLATES).map(k => [k, k])] },
     ], 'Crear');
     if (!v) return;
@@ -270,6 +304,15 @@ async function viewClient(id) {
       sections: names.map(t => ({ id: DB.uid(), title: t, text: '' })),
       layout: { orientation: 'portrait', cols: 2, rows: 3 }, cover: true, coverImage: true,
     };
+    if (v.gps) {
+      toast('Obteniendo ubicación…');
+      try {
+        r.geo = await getLocation();
+        if (!r.location) r.location = r.geo.address;
+        if (!c.address) { c.address = r.geo.address; c.geo = r.geo; }
+        if (!c.residential && r.geo.residential) c.residential = r.geo.residential;
+      } catch (e) { toast(e.message, 5000); }
+    }
     await DB.put('reports', r);
     await DB.put('clients', { ...c, updatedAt: Date.now() });
     location.hash = `#/r/${r.id}`;
@@ -287,10 +330,13 @@ async function viewReport(id) {
   view.innerHTML = `
     <section class="card summary">
       <div><b>${esc(c?.name)}</b> · ${fmtDate(r.date)}${r.location ? ' · ' + esc(r.location) : ''}</div>
+      ${c?.residential ? `<div>🏘 ${esc(c.residential)}</div>` : ''}
+      ${geoLine(r.geo)}
       <div class="muted">${nPhotos} fotos · ${nVideos} videos · ${esc(LAYOUTS.find(l => l[0] === L.orientation && l[1] === L.cols && l[2] === L.rows)?.[3] || '')}</div>
       <div class="row wrap">
         <button class="primary" id="pdf">📄 PDF</button>
         <button class="primary alt" id="zip">📦 PDF + videos (ZIP)</button>
+        <button id="here">📍 Ubicación</button>
         <button id="settings">⚙️ Ajustes</button>
         <button id="more">⋯</button>
       </div>
@@ -362,6 +408,12 @@ async function viewReport(id) {
     await DB.put('reports', r); route();
   };
 
+  $('#here').onclick = async e => {
+    const g = await withLocation(e.target); if (!g) return;
+    r.geo = g;
+    if (!r.location || confirm(`¿Usar esta dirección en el reporte?\n${g.address}`)) r.location = g.address;
+    await DB.put('reports', r); toast('Ubicación guardada en el reporte'); route();
+  };
   $('#settings').onclick = async () => {
     const v = await form('Ajustes del reporte', [
       { name: 'title', label: 'Título', value: r.title, required: true },

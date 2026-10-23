@@ -62,9 +62,16 @@ const Exporter = (() => {
       const lines = [
         client.name && `Cliente: ${client.name}`,
         (report.location || client.address) && `Ubicación: ${report.location || client.address}`,
+        client.residential && `Residencial: ${client.residential}`,
         `Fecha: ${new Date(report.date || Date.now()).toLocaleDateString('es')}`,
       ].filter(Boolean);
       lines.forEach(l => { doc.text(l, W / 2, y, { align: 'center' }); y += 8; });
+      const geo = report.geo || client.geo;
+      if (geo) {
+        doc.setFontSize(10); doc.setTextColor(...accent);
+        doc.textWithLink(`GPS: ${geo.lat}, ${geo.lng} (ver en mapa)`, W / 2 - doc.getTextWidth(`GPS: ${geo.lat}, ${geo.lng} (ver en mapa)`) / 2, y, { url: `https://www.google.com/maps?q=${geo.lat},${geo.lng}` });
+        y += 7; doc.setFontSize(14); doc.setTextColor(70);
+      }
       const coverItem = items.find(i => i.id === report.coverItemId) || items.find(i => i.type === 'photo');
       if (coverItem && report.coverImage !== false) {
         const im = await toJpeg(coverItem.annotated || coverItem.blob || coverItem.thumb);
