@@ -3,8 +3,8 @@
 const Annotator = (() => {
   const COLORS = ['#e53935', '#fdd835', '#43a047', '#1e88e5', '#ffffff', '#000000'];
   const TOOLS = [
-    ['arrow', '➚', 'Flecha'], ['measure', '↔', 'Medida'], ['circle', '◯', 'Círculo'],
-    ['rect', '▭', 'Rectángulo'], ['text', 'T', 'Texto'], ['pen', '✎', 'Libre'],
+    ['arrow', ic('arrow', 45), 'Flecha'], ['measure', '↔', 'Medida'], ['circle', '◯', 'Círculo'],
+    ['rect', '▭', 'Rectángulo'], ['text', 'T', 'Texto'], ['pen', ic('pencil'), 'Libre'],
   ];
 
   function drawShape(ctx, s, scale) {
@@ -89,8 +89,8 @@ const Annotator = (() => {
         <div class="annot-bar">
           <button data-act="cancel">Cancelar</button>
           <span class="spacer"></span>
-          <button data-act="undo" title="Deshacer">↶</button>
-          <button data-act="clear" title="Borrar todo">🗑</button>
+          <button data-act="undo" title="Deshacer">${ic('undo')}</button>
+          <button data-act="clear" title="Borrar todo">${ic('trash')}</button>
           <button data-act="save" class="primary">Guardar</button>
         </div>
         <div class="annot-stage"><canvas></canvas></div>

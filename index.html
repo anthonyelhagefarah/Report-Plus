@@ -10,21 +10,22 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="styles.css?v=20">
+  <link rel="stylesheet" href="styles.css?v=21">
   <script src="vendor/jspdf.umd.min.js"></script>
   <script src="vendor/jszip.min.js"></script>
 </head>
 <body>
   <header class="topbar">
-    <button id="backBtn" class="icon-btn" aria-label="Atrás" hidden>&#8592;</button>
+    <button id="backBtn" class="icon-btn" aria-label="Atrás" hidden><svg class="i" viewBox="0 0 24 24" style="transform:rotate(270deg)"><path d="M10.6 21h2.8V9.5h3.6L12 3.5 7 9.5h3.6z"/></svg></button>
     <h1 id="title">Report Plus</h1>
-    <button id="settingsBtn" class="icon-btn" aria-label="Mi empresa">&#9881;</button>
+    <button id="settingsBtn" class="icon-btn" aria-label="Mi empresa"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M10.3 2.5h3.4l.5 2.6 1.6.9 2.5-.9 1.7 2.9-2 1.8v1.9l2 1.8-1.7 2.9-2.5-.9-1.6.9-.5 2.6h-3.4l-.5-2.6-1.6-.9-2.5.9-1.7-2.9 2-1.8v-1.9l-2-1.8 1.7-2.9 2.5.9 1.6-.9z"/></svg></button>
   </header>
   <main id="view"></main>
   <div id="toast" role="status" hidden></div>
-  <script src="db.js?v=20"></script>
-  <script src="annotate.js?v=20"></script>
-  <script src="pdf.js?v=20"></script>
-  <script src="app.js?v=20"></script>
+  <script src="icons.js?v=21"></script>
+  <script src="db.js?v=21"></script>
+  <script src="annotate.js?v=21"></script>
+  <script src="pdf.js?v=21"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>

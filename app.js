@@ -120,11 +120,11 @@ function getLocation() {
 }
 const mapEmbed = g => { const k = 0.0025; return `<iframe class="map" loading="lazy" title="Mapa" src="https://www.openstreetmap.org/export/embed.html?bbox=${g.lng - k},${g.lat - k},${g.lng + k},${g.lat + k}&layer=mapnik&marker=${g.lat},${g.lng}"></iframe>`; };
 const mapUrl = g => `https://www.google.com/maps?q=${g.lat},${g.lng}`;
-const geoLine = g => g ? `<div>🛰 <a href="${mapUrl(g)}" target="_blank" rel="noopener">${g.lat}, ${g.lng}</a> <small class="muted">(±${g.accuracy} m · ver en mapa)</small></div>` : '';
+const geoLine = g => g ? `<div>${ic('satellite')} <a href="${mapUrl(g)}" target="_blank" rel="noopener">${g.lat}, ${g.lng}</a> <small class="muted">(±${g.accuracy} m · ver en mapa)</small></div>` : '';
 
 async function withLocation(btn) {
-  const t = btn.textContent; btn.disabled = true; btn.textContent = 'Buscando ubicación…';
-  try { return await getLocation(); } catch (e) { toast(e.message, 5000); return null; } finally { btn.disabled = false; btn.textContent = t; }
+  const t = btn.innerHTML; btn.disabled = true; btn.textContent = 'Buscando ubicación…';
+  try { return await getLocation(); } catch (e) { toast(e.message, 5000); return null; } finally { btn.disabled = false; btn.innerHTML = t; }
 }
 
 // Segundo paso del envío: un toque más para compartir los videos (el teléfono exige un toque por envío).
@@ -134,7 +134,7 @@ function sendVideosStep(videos, title) {
     d.className = 'sheet actions';
     d.innerHTML = `<form method="dialog"><h2>Ahora envía ${videos.length === 1 ? 'el video' : `los ${videos.length} videos`}</h2>
       <p class="muted small">${videos.map(v => esc(v.name)).join('<br>')}</p>
-      <button type="button" class="wide primary" id="sv">🎥 Enviar ${videos.length === 1 ? 'video' : 'videos'}</button>
+      <button type="button" class="wide primary" id="sv">${ic('video')} Enviar ${videos.length === 1 ? 'video' : 'videos'}</button>
       <button value="" class="wide ghost">Ahora no</button></form>`;
     document.body.appendChild(d);
     $('#sv', d).onclick = async () => {
@@ -246,7 +246,7 @@ function openViewer(blob) {
   const ov = document.createElement('div');
   ov.className = 'viewer';
   const url = URL.createObjectURL(blob);
-  ov.innerHTML = `<img src="${url}" alt="" draggable="false"><button class="viewer-close" aria-label="Cerrar">✕</button><div class="viewer-hint">Pellizca para ampliar · doble toque para acercar</div>`;
+  ov.innerHTML = `<img src="${url}" alt="" draggable="false"><button class="viewer-close" aria-label="Cerrar">${ic('xcircle')}</button><div class="viewer-hint">Pellizca para ampliar · doble toque para acercar</div>`;
   document.body.appendChild(ov); document.body.classList.add('noscroll');
   const img = $('img', ov);
   let scale = 1, tx = 0, ty = 0, lastTap = 0;
@@ -328,11 +328,11 @@ function quickCreateForm() {
       <label>Dirección<input name="address"></label>
       <label>Nombre del residencial<input name="residential"></label>
       <label>Ubicación en el mapa</label>
-      <button type="button" id="qgps" class="wide">📍 Guardar mi ubicación actual</button>
+      <button type="button" id="qgps" class="wide">${ic('pin')} Guardar mi ubicación actual</button>
       <div id="qgeo" class="muted small"></div>
       <div id="qmap"></div>
       <label>Foto de portada <small>(opcional)</small></label>
-      <div class="row cover-pick"><button type="button" data-cv="take">📷 Tomar foto</button><button type="button" data-cv="pick">🖼 Galería</button></div>
+      <div class="row cover-pick"><button type="button" data-cv="take">${ic('camera')} Tomar foto</button><button type="button" data-cv="pick">${ic('gallery')} Galería</button></div>
       <div id="qcover"></div>
       <label>Teléfono<input name="phone" type="tel"></label>
       <label>Correo<input name="email" type="email"></label>
@@ -345,13 +345,13 @@ function quickCreateForm() {
       const [f] = await pickFiles('image/*', { capture: b.dataset.cv === 'take' });
       if (!f) return;
       cover = f;
-      $('#qcover', d).innerHTML = `<div class="cover-prev"><img src="${URL.createObjectURL(f)}" alt=""><button type="button" class="kebab" id="qcoverdel" aria-label="Quitar">✕</button></div>`;
+      $('#qcover', d).innerHTML = `<div class="cover-prev"><img src="${URL.createObjectURL(f)}" alt=""><button type="button" class="kebab" id="qcoverdel" aria-label="Quitar">${ic('xcircle')}</button></div>`;
       $('#qcoverdel', d).onclick = () => { cover = null; $('#qcover', d).innerHTML = ''; };
     });
     $('#qgps', d).onclick = async e => {
       const g = await withLocation(e.currentTarget); if (!g) return;
       geo = g;
-      $('#qgeo', d).innerHTML = `🛰 GPS guardado: ${g.lat}, ${g.lng} (±${g.accuracy} m) · <a href="${mapUrl(g)}" target="_blank" rel="noopener">Abrir en Google Maps</a>`;
+      $('#qgeo', d).innerHTML = `${ic('satellite')} GPS guardado: ${g.lat}, ${g.lng} (±${g.accuracy} m) · <a href="${mapUrl(g)}" target="_blank" rel="noopener">Abrir en Google Maps</a>`;
       $('#qmap', d).innerHTML = mapEmbed(g);
     };
     d.addEventListener('close', () => {
@@ -371,7 +371,7 @@ function actionSheet(title, options) {
     const d = document.createElement('dialog');
     d.className = 'sheet actions';
     d.innerHTML = `<form method="dialog">${title ? `<h2>${esc(title)}</h2>` : ''}
-      ${options.map(([k, t, cls]) => `<button value="${esc(k)}" class="wide ${cls || ''}">${esc(t)}</button>`).join('')}
+      ${options.map(([k, t, cls, icon]) => `<button value="${esc(k)}" class="wide ${cls || ''}">${icon ? ic(icon) + ' ' : ''}${esc(t)}</button>`).join('')}
       <button value="" class="wide ghost">Cancelar</button></form>`;
     document.body.appendChild(d);
     d.addEventListener('close', () => { const v = d.returnValue; d.remove(); resolve(v || null); });
@@ -398,19 +398,19 @@ async function viewHome(folderId) {
   const reports = all.filter(r => folder ? r.folderId === folder.id : !r.folderId);
   const reportRow = (r, hidden) => {
     const l = label(r);
-    return `<li data-name="${esc(l.search)}" data-report="${r.id}" ${hidden ? 'hidden' : ''}><a href="#/r/${r.id}"><span class="ico">📋</span><div class="grow"><b>${esc(l.text)}</b></div></a><button class="kebab" data-menu="${r.id}" aria-label="Opciones">⋮</button></li>`;
+    return `<li data-name="${esc(l.search)}" data-report="${r.id}" ${hidden ? 'hidden' : ''}><a href="#/r/${r.id}"><span class="ico">${ic('report')}</span><div class="grow"><b>${esc(l.text)}</b></div></a><button class="kebab" data-menu="${r.id}" aria-label="Opciones">⋮</button></li>`;
   };
   view.innerHTML = `
     ${folder ? '' : modeSwitch()}
     <div class="toolbar"><input type="search" id="q" placeholder="Buscar cliente o dirección…"></div>
     <ul class="list" id="list">
-      ${folder ? '' : folders.map(f => `<li data-name="${esc(f.name.toLowerCase())}" data-folder-row><a href="#/f/${f.id}"><span class="ico">📁</span><div class="grow"><b>${esc(f.name)}</b> <small class="inline-count">${all.filter(r => r.folderId === f.id).length}</small></div></a><button class="kebab" data-fmenu="${f.id}" aria-label="Opciones">⋮</button></li>`).join('')}
+      ${folder ? '' : folders.map(f => `<li data-name="${esc(f.name.toLowerCase())}" data-folder-row><a href="#/f/${f.id}"><span class="ico">${ic('folder')}</span><div class="grow"><b>${esc(f.name)}</b> <small class="inline-count">${all.filter(r => r.folderId === f.id).length}</small></div></a><button class="kebab" data-fmenu="${f.id}" aria-label="Opciones">⋮</button></li>`).join('')}
       ${reports.map(r => reportRow(r)).join('')}
       ${folder ? '' : all.filter(r => r.folderId).map(r => reportRow(r, true).replace('<li ', '<li data-infolder ')).join('')}
     </ul>
     ${reports.length || (!folder && folders.length) ? '' : `<div class="empty"><p>${folder ? 'Carpeta vacía.' : 'Aún no tienes clientes.'}</p><p>Pulsa <b>+</b> para crear uno y empezar a tomar fotos.</p></div>`}
-    ${folder ? '' : '<button class="ghost wide" id="newfolder">📁 Nueva carpeta</button>'}
-    <button class="fab" id="add" aria-label="Crear cliente">+</button>`;
+    ${folder ? '' : `<button class="ghost wide" id="newfolder">${ic('folder')} Nueva carpeta</button>`}
+    <button class="fab" id="add" aria-label="Crear cliente">${ic('plus')}</button>`;
   if (!folder) bindModeSwitch();
   $('#q').oninput = e => {
     const q = e.target.value.trim().toLowerCase();
@@ -438,9 +438,9 @@ async function viewHome(folderId) {
   view.querySelectorAll('[data-menu]').forEach(b => b.onclick = async () => {
     const r = all.find(x => x.id === b.dataset.menu);
     const opts = [['open', 'Abrir']];
-    if (folders.length) opts.push(['move', '📁 Mover a carpeta']);
+    if (folders.length) opts.push(['move', 'Mover a carpeta', '', 'folder']);
     if (r.folderId) opts.push(['out', 'Sacar de la carpeta']);
-    opts.push(['del', '🗑 Eliminar reporte', 'danger']);
+    opts.push(['del', 'Eliminar reporte', 'danger', 'trash']);
     const a = await actionSheet(label(r).text, opts);
     if (a === 'open') location.hash = `#/r/${r.id}`;
     if (a === 'move') {
@@ -452,7 +452,7 @@ async function viewHome(folderId) {
   });
   view.querySelectorAll('[data-fmenu]').forEach(b => b.onclick = async () => {
     const f = folders.find(x => x.id === b.dataset.fmenu);
-    const a = await actionSheet(f.name, [['rename', 'Cambiar nombre'], ['del', '🗑 Eliminar carpeta (los reportes se conservan)', 'danger']]);
+    const a = await actionSheet(f.name, [['rename', 'Cambiar nombre'], ['del', 'Eliminar carpeta (los reportes se conservan)', 'danger', 'trash']]);
     if (a === 'rename') {
       const v = await form('Cambiar nombre', [{ name: 'name', label: 'Nombre', value: f.name, required: true }]);
       if (v && v.name) { f.name = v.name; await saveFolders(folders); route(); }
@@ -509,9 +509,9 @@ async function viewClient(id) {
   view.innerHTML = `
     <section class="card">
       <div class="row"><div class="grow">
-        ${c.address ? `<div>📍 ${esc(c.address)}</div>` : ''}${c.residential ? `<div>🏘 ${esc(c.residential)}</div>` : ''}${geoLine(c.geo)}${c.phone ? `<div>📞 <a href="tel:${esc(c.phone)}">${esc(c.phone)}</a></div>` : ''}
-        ${c.email ? `<div>✉️ <a href="mailto:${esc(c.email)}">${esc(c.email)}</a></div>` : ''}${c.notes ? `<p class="muted">${esc(c.notes)}</p>` : ''}
-      </div><div class="col"><button id="here">📍 Estoy aquí</button><button id="edit">Editar</button><button id="del" class="danger">Eliminar</button></div></div>
+        ${c.address ? `<div>${ic('pin')} ${esc(c.address)}</div>` : ''}${c.residential ? `<div>${ic('house')} ${esc(c.residential)}</div>` : ''}${geoLine(c.geo)}${c.phone ? `<div>${ic('phone')} <a href="tel:${esc(c.phone)}">${esc(c.phone)}</a></div>` : ''}
+        ${c.email ? `<div>${ic('mail')} <a href="mailto:${esc(c.email)}">${esc(c.email)}</a></div>` : ''}${c.notes ? `<p class="muted">${esc(c.notes)}</p>` : ''}
+      </div><div class="col"><button id="here">${ic('pin')} Estoy aquí</button><button id="edit">Editar</button><button id="del" class="danger">Eliminar</button></div></div>
     </section>
     <div class="toolbar"><h2 class="grow">Reportes</h2><button class="primary" id="add">+ Reporte</button></div>
     <ul class="list">
@@ -535,7 +535,7 @@ async function viewClient(id) {
     const v = await form('Nuevo reporte', [
       { name: 'title', label: 'Título', value: `Inspección ${new Date().toLocaleDateString('es')}`, required: true },
       { name: 'location', label: 'Ubicación', value: c.address },
-      { name: 'gps', label: '📍 Guardar mi ubicación GPS actual', type: 'checkbox', value: true },
+      { name: 'gps', label: 'Guardar mi ubicación GPS actual', type: 'checkbox', value: true },
       { name: 'tpl', label: 'Plantilla de secciones', type: 'select', value: '', options: [['', 'Una sola sección (General)'], ...Object.keys(SECTION_TEMPLATES).map(k => [k, k])] },
     ], 'Crear');
     if (!v) return;
@@ -570,35 +570,35 @@ async function viewReport(id) {
   view.innerHTML = `
     <section class="card summary">
       <div><b>${esc(c?.name)}</b> · ${fmtDate(r.date)}${r.location ? ' · ' + esc(r.location) : ''}</div>
-      ${c?.residential ? `<div>🏘 ${esc(c.residential)}</div>` : ''}
+      ${c?.residential ? `<div>${ic('house')} ${esc(c.residential)}</div>` : ''}
       ${geoLine(r.geo)}
       ${simple && r.geo ? mapEmbed(r.geo) : ''}
       <div class="muted">${nPhotos} fotos · ${nVideos} videos${r.coverPhoto ? ' · con foto de portada' : ''}</div>
       <div class="row wrap">
-        <button class="primary" id="pdf">📤 Enviar PDF${nVideos ? ' + videos' : ''}</button>
-        <button id="coverbtn">🖼 Portada</button>
-        <button id="here">📍 Ubicación</button>
-        <button id="settings">⚙️ Ajustes</button>
+        <button class="primary" id="pdf">${ic('arrow')} Enviar PDF${nVideos ? ' + videos' : ''}</button>
+        <button id="coverbtn">${ic('gallery')} Portada</button>
+        <button id="here">${ic('pin')} Ubicación</button>
+        <button id="settings">${ic('gear')} Ajustes</button>
         <button id="more">⋯</button>
       </div>
     </section>
     ${simple ? simpleReportBody(r, items) : r.sections.map(s => {
       const its = items.filter(i => i.sectionId === s.id);
       return `<section class="section" data-sec="${s.id}">
-        <div class="sec-head"><h2 class="grow">${esc(s.title)} <small>(${its.length})</small></h2><button data-a="secedit" title="Editar sección">✎</button></div>
+        <div class="sec-head"><h2 class="grow">${esc(s.title)} <small>(${its.length})</small></h2><button data-a="secedit" title="Editar sección">${ic('pencil')}</button></div>
         ${s.text ? `<p class="muted">${esc(s.text)}</p>` : ''}
         <div class="grid">${its.map(it => `
           <a class="thumb" href="#/i/${it.id}">
-            ${(it.type === 'video' ? it.thumb : (it.annotated || it.blob)) ? `<img loading="lazy" src="${objUrl(it.type === 'video' ? it.thumb : (it.annotated || it.blob))}" alt="">` : '<div class="noimg">🎥</div>'}
+            ${(it.type === 'video' ? it.thumb : (it.annotated || it.blob)) ? `<img loading="lazy" src="${objUrl(it.type === 'video' ? it.thumb : (it.annotated || it.blob))}" alt="">` : `<div class="noimg">${ic('video')}</div>`}
             ${it.type === 'video' ? `<span class="vbadge">▶ ${fmtDur(it.duration)}</span>` : ''}
-            ${it.shapes?.length ? '<span class="abadge">✎</span>' : ''}
+            ${it.shapes?.length ? `<span class="abadge">${ic('pencil')}</span>` : ''}
             ${(it.caption || it.measure) ? `<span class="cap">${esc([it.caption, it.measure].filter(Boolean).join(' · ').replace(/\n+/g, ' · '))}</span>` : ''}
           </a>`).join('')}</div>
         <div class="row add-row">
-          <button data-a="cam">📸 Ráfaga</button>
-          <button data-a="photo">📷 Foto</button>
-          <button data-a="video">🎥 Video</button>
-          <button data-a="gallery">🖼 Galería</button>
+          <button data-a="cam">${ic('burst')} Ráfaga</button>
+          <button data-a="photo">${ic('camera')} Foto</button>
+          <button data-a="video">${ic('video')} Video</button>
+          <button data-a="gallery">${ic('gallery')} Galería</button>
         </div>
       </section>`;
     }).join('')}
@@ -687,7 +687,7 @@ async function viewReport(id) {
   const entryCap = Object.fromEntries((r.entries || []).map(e => [e.id, e.caption]));
   const exportData = async () => ({ company: await DB.getSettings(), client: c || {}, report: r, sections: r.sections,
     items: [...items].sort((a, b) => a.order - b.order).map(i => (i.entryId in entryCap ? { ...i, caption: entryCap[i.entryId] } : i)) });
-  const busy = async (btn, fn) => { btn.disabled = true; const t = btn.textContent; btn.textContent = 'Generando…'; try { await fn(); } catch (e) { console.error(e); toast('Error: ' + e.message, 5000); } btn.disabled = false; btn.textContent = t; };
+  const busy = async (btn, fn) => { btn.disabled = true; const t = btn.innerHTML; btn.textContent = 'Generando…'; try { await fn(); } catch (e) { console.error(e); toast('Error: ' + e.message, 5000); } btn.disabled = false; btn.innerHTML = t; };
   const base = Exporter.slug(r.title) || 'reporte';
   // Enviar: primero el PDF y, si hay videos, después los videos como archivos aparte
   // (WhatsApp no acepta PDF y video en el mismo envío, por eso van en dos pasos).
@@ -699,8 +699,8 @@ async function viewReport(id) {
     if (videos.length) await sendVideosStep(videos, r.title);
   });
   $('#coverbtn').onclick = async () => {
-    const opts = [['take', '📷 Tomar foto'], ['pick', '🖼 Elegir de galería']];
-    if (r.coverPhoto) opts.push(['see', '👁 Ver portada actual'], ['del', 'Quitar foto de portada', 'danger']);
+    const opts = [['take', 'Tomar foto', '', 'camera'], ['pick', 'Elegir de galería', '', 'gallery']];
+    if (r.coverPhoto) opts.push(['see', 'Ver portada actual', '', 'eye'], ['del', 'Quitar foto de portada', 'danger']);
     const a = await actionSheet('Foto de portada', opts);
     if (a === 'take' || a === 'pick') {
       const [f] = await pickFiles('image/*', { capture: a === 'take' });
@@ -742,8 +742,8 @@ function simpleReportBody(r, items) {
     ...entries.map(e => ({ t: e.createdAt, html: entryRow(e, items.filter(i => i.entryId === e.id).sort((a, b) => a.order - b.order)) })),
   ].sort((a, b) => a.t - b.t);
   function entryRow(e, its) {
-    const thumbs = its.slice(0, 4).map(it => { const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob); return `<span class="ithumb sm">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : '🎥'}</span>`; }).join('');
-    return `<li class="irow"><div class="when">${fmtWhen(e.createdAt)} · 📸 Ráfaga</div>
+    const thumbs = its.slice(0, 4).map(it => { const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob); return `<span class="ithumb sm">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : ic('video')}</span>`; }).join('');
+    return `<li class="irow"><div class="when">${fmtWhen(e.createdAt)} · ${ic('burst')} Ráfaga</div>
       <a href="#/e/${r.id}/${e.id}" class="irow-main col-main">
         <span class="itext"><b>${esc(e.caption || 'Ráfaga')}</b> <span class="muted">(${its.length} ${its.length === 1 ? 'foto' : 'fotos'})</span></span>
         <span class="strip">${thumbs}${its.length > 4 ? `<span class="more">+${its.length - 4}</span>` : ''}</span>
@@ -754,14 +754,14 @@ function simpleReportBody(r, items) {
     const text = [it.caption, it.measure].filter(Boolean).join('\n');
     return `<li class="irow"><div class="when">${fmtWhen(it.createdAt)}</div>
       <a href="#/i/${it.id}" class="irow-main">
-        <span class="ithumb">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : '🎥'}${it.type === 'video' ? `<span class="vbadge">▶ ${fmtDur(it.duration)}</span>` : ''}</span>
+        <span class="ithumb">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : ic('video')}${it.type === 'video' ? `<span class="vbadge">▶ ${fmtDur(it.duration)}</span>` : ''}</span>
         <span class="itext">${text ? esc(text) : '<span class="muted">Toca para agregar descripción y medidas</span>'}</span>
       </a><button class="kebab" data-imenu="${it.id}" aria-label="Opciones">⋮</button></li>`;
   }
   return `
     ${rows.length ? `<ul class="ilist">${rows.map(x => x.html).join('')}</ul>`
     : '<div class="empty"><p>Todavía no hay fotos ni videos.</p><p>Pulsa <b>+</b> para agregar fotos o videos.</p></div>'}
-    <button class="fab" id="newItem" aria-label="Agregar foto o video">+</button>`;
+    <button class="fab" id="newItem" aria-label="Agregar foto o video">${ic('plus')}</button>`;
 }
 
 // Ventana del botón +: área, descripción, medida y cómo capturar.
@@ -774,10 +774,10 @@ function newItemSheet(r) {
       <label>Descripción<textarea name="caption" class="autogrow" rows="1" placeholder="Ej. Oficina"></textarea></label>
       <label>Nota / Medida <small>(en Ráfaga cada foto lleva la suya)</small><textarea name="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36"></textarea></label>
       <div class="cap-btns">
-        <button type="button" data-a="cam">📸<small>Ráfaga</small></button>
-        <button type="button" data-a="photo">📷<small>Foto</small></button>
-        <button type="button" data-a="video">🎥<small>Video</small></button>
-        <button type="button" data-a="gallery">🖼<small>Galería</small></button>
+        <button type="button" data-a="cam">${ic('burst')}<small>Ráfaga</small></button>
+        <button type="button" data-a="photo">${ic('camera')}<small>Foto</small></button>
+        <button type="button" data-a="video">${ic('video')}<small>Video</small></button>
+        <button type="button" data-a="gallery">${ic('gallery')}<small>Galería</small></button>
       </div>
       <div class="row end"><button value="cancel" formnovalidate>Cancelar</button></div>
     </form>`;
@@ -828,7 +828,7 @@ function bindSimpleReport(r, items) {
   };
   view.querySelectorAll('[data-emenu]').forEach(b => b.onclick = async () => {
     const e = r.entries.find(x => x.id === b.dataset.emenu);
-    const a = await actionSheet(e.caption || 'Ráfaga', [['open', 'Abrir'], ['del', '🗑 Eliminar ráfaga completa', 'danger']]);
+    const a = await actionSheet(e.caption || 'Ráfaga', [['open', 'Abrir'], ['del', 'Eliminar ráfaga completa', 'danger', 'trash']]);
     if (a === 'open') location.hash = `#/e/${r.id}/${e.id}`;
     if (a === 'del' && confirm('¿Eliminar esta ráfaga con todas sus fotos?')) {
       for (const it of items.filter(i => i.entryId === e.id)) await DB.del('items', it.id);
@@ -837,7 +837,7 @@ function bindSimpleReport(r, items) {
   });
   view.querySelectorAll('[data-imenu]').forEach(b => b.onclick = async () => {
     const it = items.find(x => x.id === b.dataset.imenu);
-    const opts = [['open', 'Abrir'], ['del', '🗑 Eliminar', 'danger']];
+    const opts = [['open', 'Abrir'], ['del', 'Eliminar', 'danger', 'trash']];
     const a = await actionSheet(it.type === 'video' ? 'Video' : 'Foto', opts);
     if (a === 'open') location.hash = `#/i/${it.id}`;
     if (a === 'area') {
@@ -862,17 +862,17 @@ async function viewEntry(rid, eid) {
     <ul class="blist">${its.map((it, n) => {
       const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob);
       return `<li class="card bitem" data-id="${it.id}">
-        <div class="bhead"><b>${it.type === 'video' ? 'Video' : 'Foto'} ${n + 1}</b><button class="kebab" data-bdel="${it.id}" aria-label="Eliminar">🗑</button></div>
-        <a href="#/i/${it.id}" class="bmedia">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : '🎥'}${it.type === 'video' ? `<span class="vbadge">▶ ${fmtDur(it.duration)}</span>` : ''}</a>
+        <div class="bhead"><b>${it.type === 'video' ? 'Video' : 'Foto'} ${n + 1}</b><button class="kebab" data-bdel="${it.id}" aria-label="Eliminar">${ic('trash')}</button></div>
+        <a href="#/i/${it.id}" class="bmedia">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : ic('video')}${it.type === 'video' ? `<span class="vbadge">▶ ${fmtDur(it.duration)}</span>` : ''}</a>
         <label>Nota / Medida<textarea class="autogrow bmeasure" rows="1" placeholder="Ej. 36 x 48">${esc(it.measure)}</textarea></label>
       </li>`;
     }).join('')}</ul>
     ${its.length ? '' : '<div class="empty"><p>Sin fotos todavía.</p></div>'}
     <div class="cap-btns entry-add">
-      <button data-a="cam">📸<small>Más ráfaga</small></button>
-      <button data-a="photo">📷<small>Foto</small></button>
-      <button data-a="video">🎥<small>Video</small></button>
-      <button data-a="gallery">🖼<small>Galería</small></button>
+      <button data-a="cam">${ic('burst')}<small>Más ráfaga</small></button>
+      <button data-a="photo">${ic('camera')}<small>Foto</small></button>
+      <button data-a="video">${ic('video')}<small>Video</small></button>
+      <button data-a="gallery">${ic('gallery')}<small>Galería</small></button>
     </div>`;
   const grow = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; };
   const ecap = $('#ecap');
@@ -914,7 +914,7 @@ async function viewItem(id) {
   view.innerHTML = `
     <div class="media">${media}</div>
     <div class="row wrap">
-      ${it.type === 'photo' ? '<button class="primary" id="annot">✎ Anotar / medir</button>' : '<button id="rethumb">🖼 Cambiar miniatura</button>'}
+      ${it.type === 'photo' ? `<button class="primary" id="annot">${ic('pencil')} Anotar / medir</button>` : `<button id="rethumb">${ic('gallery')} Cambiar miniatura</button>`}
       <button id="prev" ${idx <= 0 ? 'disabled' : ''}>‹ Anterior</button>
       <button id="next" ${idx >= siblings.length - 1 ? 'disabled' : ''}>Siguiente ›</button>
     </div>
@@ -923,9 +923,9 @@ async function viewItem(id) {
       <label>Nota / Medida<textarea id="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36">${esc(it.measure)}</textarea></label>
       <label ${r.sections.length > 1 ? '' : 'hidden'}>Sección<select id="section">${r.sections.map(s => `<option value="${s.id}" ${s.id === it.sectionId ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}</select></label>
       <div class="row wrap">
-        <button id="up">↑ Mover antes</button><button id="down">↓ Mover después</button>
-        ${it.type === 'photo' ? '<button id="cover">☆ Usar en portada</button>' : ''}
-        <button id="save1">⬇ Descargar archivo</button>
+        <button id="up">${ic('arrow')} Mover antes</button><button id="down">${ic('arrow', 180)} Mover después</button>
+        ${it.type === 'photo' ? `<button id="cover">${ic('star')} Usar en portada</button>` : ''}
+        <button id="save1">${ic('arrow', 180)} Descargar archivo</button>
         <button id="del" class="danger">Eliminar</button>
       </div>
     </section>`;
@@ -999,7 +999,7 @@ async function viewSettings() {
     <section class="card">
       <h2>Respaldo</h2>
       <p class="muted">Todo se guarda solo en este teléfono. Haz respaldos para no perder tus reportes, o para pasarlos a otro equipo.</p>
-      <div class="row wrap"><button id="backup">⬇ Crear respaldo</button><button id="restore">⬆ Restaurar / importar .rplus</button></div>
+      <div class="row wrap"><button id="backup">${ic('arrow', 180)} Crear respaldo</button><button id="restore">${ic('arrow')} Restaurar / importar .rplus</button></div>
       <p class="muted" id="usage"></p>
     </section>`;
   $('#logo').onclick = async () => { const [f] = await pickFiles('image/*'); if (f) { s.logo = f; await DB.saveSettings(s); route(); } };
