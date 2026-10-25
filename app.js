@@ -653,7 +653,9 @@ async function viewReport(id) {
     await DB.put('reports', r); route();
   };
 
-  const exportData = async () => ({ company: await DB.getSettings(), client: c || {}, report: r, sections: r.sections, items: r.sections.flatMap(s => items.filter(i => i.sectionId === s.id)) });
+  const entryCap = Object.fromEntries((r.entries || []).map(e => [e.id, e.caption]));
+  const exportData = async () => ({ company: await DB.getSettings(), client: c || {}, report: r, sections: r.sections,
+    items: r.sections.flatMap(s => items.filter(i => i.sectionId === s.id)).map(i => (i.entryId in entryCap ? { ...i, caption: entryCap[i.entryId] } : i)) });
   const busy = async (btn, fn) => { btn.disabled = true; const t = btn.textContent; btn.textContent = 'Generando…'; try { await fn(); } catch (e) { console.error(e); toast('Error: ' + e.message, 5000); } btn.disabled = false; btn.textContent = t; };
   const base = Exporter.slug(r.title) || 'reporte';
   $('#pdf').onclick = e => busy(e.target, async () => {
@@ -691,8 +693,20 @@ let currentArea = {};
 function simpleReportBody(r, items) {
   const area = currentArea[r.id] && r.sections.some(s => s.id === currentArea[r.id]) ? currentArea[r.id] : r.sections[0].id;
   currentArea[r.id] = area;
-  const list = [...items].sort((a, b) => a.createdAt - b.createdAt);
-  const row = it => {
+  const entries = r.entries || [];
+  const rows = [
+    ...items.filter(i => !i.entryId || !entries.some(e => e.id === i.entryId)).map(i => ({ t: i.createdAt, html: row(i) })),
+    ...entries.map(e => ({ t: e.createdAt, html: entryRow(e, items.filter(i => i.entryId === e.id).sort((a, b) => a.order - b.order)) })),
+  ].sort((a, b) => a.t - b.t);
+  function entryRow(e, its) {
+    const thumbs = its.slice(0, 4).map(it => { const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob); return `<span class="ithumb sm">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : '🎥'}</span>`; }).join('');
+    return `<li class="irow"><div class="when">${fmtWhen(e.createdAt)} · 📸 Ráfaga</div>
+      <a href="#/e/${r.id}/${e.id}" class="irow-main col-main">
+        <span class="itext"><b>${esc(e.caption || 'Ráfaga')}</b> <span class="muted">(${its.length} ${its.length === 1 ? 'foto' : 'fotos'})</span></span>
+        <span class="strip">${thumbs}${its.length > 4 ? `<span class="more">+${its.length - 4}</span>` : ''}</span>
+      </a><button class="kebab" data-emenu="${e.id}" aria-label="Opciones">⋮</button></li>`;
+  }
+  function row(it) {
     const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob);
     const text = [it.caption, it.measure].filter(Boolean).join('\n');
     return `<li class="irow"><div class="when">${fmtWhen(it.createdAt)}</div>
@@ -700,9 +714,9 @@ function simpleReportBody(r, items) {
         <span class="ithumb">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : '🎥'}${it.type === 'video' ? `<span class="vbadge">▶ ${fmtDur(it.duration)}</span>` : ''}</span>
         <span class="itext">${text ? esc(text) : '<span class="muted">Toca para agregar descripción y medidas</span>'}</span>
       </a><button class="kebab" data-imenu="${it.id}" aria-label="Opciones">⋮</button></li>`;
-  };
+  }
   return `
-    ${list.length ? `<ul class="ilist">${list.map(row).join('')}</ul>`
+    ${rows.length ? `<ul class="ilist">${rows.map(x => x.html).join('')}</ul>`
     : '<div class="empty"><p>Todavía no hay fotos ni videos.</p><p>Pulsa <b>+</b> para agregar fotos o videos.</p></div>'}
     <button class="fab" id="newItem" aria-label="Agregar foto o video">+</button>`;
 }
@@ -715,7 +729,7 @@ function newItemSheet(r) {
     const area = currentArea[r.id];
     d.innerHTML = `<form method="dialog"><h2>Agregar</h2>
       <label>Descripción<textarea name="caption" class="autogrow" rows="1" placeholder="Ej. Oficina"></textarea></label>
-      <label>Medida <small>(una por línea)</small><textarea name="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36"></textarea></label>
+      <label>Medida <small>(en Ráfaga cada foto lleva su propia medida)</small><textarea name="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36"></textarea></label>
       <div class="cap-btns">
         <button type="button" data-a="cam">📸<small>Ráfaga</small></button>
         <button type="button" data-a="photo">📷<small>Foto</small></button>
@@ -749,10 +763,31 @@ function bindSimpleReport(r, items) {
     currentArea[r.id] = v.sectionId;
     const extra = { caption: v.caption, measure: v.measure };
     const sid = v.sectionId;
-    if (v.action === 'cam') { await openCamera(f => addMedia(r, sid, [f], extra)); return route(); }
+    if (v.action === 'cam') {
+      const e = { id: DB.uid(), caption: v.caption, createdAt: Date.now() };
+      let first = true;
+      const n = await openCamera(f => {
+        const m = first ? v.measure : ''; first = false;
+        return addMedia(r, sid, [f], { entryId: e.id, measure: m });
+      });
+      if (!n) return route();
+      r.entries = [...(r.entries || []), e];
+      await DB.put('reports', r);
+      location.hash = `#/e/${r.id}/${e.id}`;
+      return;
+    }
     const f = await v.files;
     if (f.length) { if (v.action === 'gallery') toast('Importando…'); await addMedia(r, sid, f, extra); route(); }
   };
+  view.querySelectorAll('[data-emenu]').forEach(b => b.onclick = async () => {
+    const e = r.entries.find(x => x.id === b.dataset.emenu);
+    const a = await actionSheet(e.caption || 'Ráfaga', [['open', 'Abrir'], ['del', '🗑 Eliminar ráfaga completa', 'danger']]);
+    if (a === 'open') location.hash = `#/e/${r.id}/${e.id}`;
+    if (a === 'del' && confirm('¿Eliminar esta ráfaga con todas sus fotos?')) {
+      for (const it of items.filter(i => i.entryId === e.id)) await DB.del('items', it.id);
+      r.entries = r.entries.filter(x => x !== e); await DB.put('reports', r); route();
+    }
+  });
   view.querySelectorAll('[data-imenu]').forEach(b => b.onclick = async () => {
     const it = items.find(x => x.id === b.dataset.imenu);
     const opts = [['open', 'Abrir'], ['del', '🗑 Eliminar', 'danger']];
@@ -766,13 +801,66 @@ function bindSimpleReport(r, items) {
   });
 }
 
+// Ráfaga: una descripción (ej. "Cocina") y cada foto con su propia medida.
+async function viewEntry(rid, eid) {
+  const r = await DB.get('reports', rid);
+  const e = r && (r.entries || []).find(x => x.id === eid);
+  if (!e) return (location.hash = r ? `#/r/${rid}` : '#/');
+  setHeader(e.caption || 'Ráfaga', `#/r/${rid}`);
+  const its = (await DB.byIndex('items', 'reportId', rid)).filter(i => i.entryId === eid).sort((a, b) => a.order - b.order);
+  view.innerHTML = `
+    <section class="card">
+      <label>Descripción<textarea id="ecap" class="autogrow" rows="1" placeholder="Ej. Cocina">${esc(e.caption)}</textarea></label>
+    </section>
+    <ul class="blist">${its.map((it, n) => {
+      const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob);
+      return `<li class="card bitem" data-id="${it.id}">
+        <div class="bhead"><b>${it.type === 'video' ? 'Video' : 'Foto'} ${n + 1}</b><button class="kebab" data-bdel="${it.id}" aria-label="Eliminar">🗑</button></div>
+        <a href="#/i/${it.id}" class="bmedia">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : '🎥'}${it.type === 'video' ? `<span class="vbadge">▶ ${fmtDur(it.duration)}</span>` : ''}</a>
+        <label>Medida<textarea class="autogrow bmeasure" rows="1" placeholder="Ej. 36 x 48">${esc(it.measure)}</textarea></label>
+      </li>`;
+    }).join('')}</ul>
+    ${its.length ? '' : '<div class="empty"><p>Sin fotos todavía.</p></div>'}
+    <div class="cap-btns entry-add">
+      <button data-a="cam">📸<small>Más ráfaga</small></button>
+      <button data-a="photo">📷<small>Foto</small></button>
+      <button data-a="video">🎥<small>Video</small></button>
+      <button data-a="gallery">🖼<small>Galería</small></button>
+    </div>`;
+  const grow = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; };
+  const ecap = $('#ecap');
+  grow(ecap);
+  ecap.addEventListener('input', () => { grow(ecap); setHeader(ecap.value.trim() || 'Ráfaga', `#/r/${rid}`); clearTimeout(ecap.t); ecap.t = setTimeout(async () => { e.caption = ecap.value.trim(); await DB.put('reports', r); }, 400); });
+  view.querySelectorAll('.bitem').forEach(li => {
+    const it = its.find(x => x.id === li.dataset.id);
+    const ta = $('.bmeasure', li);
+    grow(ta);
+    ta.addEventListener('input', () => { grow(ta); clearTimeout(ta.t); ta.t = setTimeout(() => { it.measure = ta.value.trim(); DB.put('items', it); }, 400); });
+  });
+  view.querySelectorAll('[data-bdel]').forEach(b => b.onclick = async () => {
+    if (!confirm('¿Eliminar esta foto?')) return;
+    await DB.del('items', b.dataset.bdel); route();
+  });
+  const sid = r.sections[0].id;
+  $('.entry-add').addEventListener('click', async ev => {
+    const b = ev.target.closest('button[data-a]'); if (!b) return;
+    const a = b.dataset.a;
+    if (a === 'cam') { await openCamera(f => addMedia(r, sid, [f], { entryId: eid })); return route(); }
+    const f = await (a === 'photo' ? pickFiles('image/*', { capture: true })
+      : a === 'video' ? pickFiles('video/*', { capture: true })
+      : pickFiles('image/*,video/*', { multiple: true }));
+    if (f.length) { await addMedia(r, sid, f, { entryId: eid }); route(); }
+  });
+}
+
 async function viewItem(id) {
   const it = await DB.get('items', id);
   if (!it) return history.back();
   const r = await DB.get('reports', it.reportId);
   const siblings = (await DB.byIndex('items', 'reportId', r.id)).sort((a, b) => a.order - b.order);
   const idx = siblings.findIndex(s => s.id === id);
-  setHeader(it.type === 'video' ? 'Video' : 'Foto', `#/r/${r.id}`);
+  const inEntry = it.entryId && (r.entries || []).some(e => e.id === it.entryId);
+  setHeader(it.type === 'video' ? 'Video' : 'Foto', inEntry ? `#/e/${r.id}/${it.entryId}` : `#/r/${r.id}`);
   const media = it.type === 'video'
     ? `<video controls playsinline src="${objUrl(it.blob)}" ${it.thumb ? `poster="${objUrl(it.thumb)}"` : ''}></video>`
     : `<img src="${objUrl(it.annotated || it.blob)}" alt="">`;
@@ -784,7 +872,7 @@ async function viewItem(id) {
       <button id="next" ${idx >= siblings.length - 1 ? 'disabled' : ''}>Siguiente ›</button>
     </div>
     <section class="card">
-      <label>Descripción<textarea id="caption" class="autogrow" rows="1" placeholder="Ej. Oficina">${esc(it.caption)}</textarea></label>
+      <label ${inEntry ? 'hidden' : ''}>Descripción<textarea id="caption" class="autogrow" rows="1" placeholder="Ej. Oficina">${esc(it.caption)}</textarea></label>
       <label>Medidas <small>(una por línea)</small><textarea id="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36">${esc(it.measure)}</textarea></label>
       <label ${r.sections.length > 1 ? '' : 'hidden'}>Sección<select id="section">${r.sections.map(s => `<option value="${s.id}" ${s.id === it.sectionId ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}</select></label>
       <div class="row wrap">
@@ -827,7 +915,7 @@ async function viewItem(id) {
   $('#save1').onclick = () => download(it.type === 'photo' ? (it.annotated || it.blob) : it.blob, `${it.type}_${it.id}.${(it.blob.type.split('/')[1] || 'bin').split(';')[0]}`);
   $('#del').onclick = async () => {
     if (!confirm('¿Eliminar este elemento?')) return;
-    await DB.del('items', id); location.hash = `#/r/${r.id}`;
+    await DB.del('items', id); location.hash = inEntry ? `#/e/${r.id}/${it.entryId}` : `#/r/${r.id}`;
   };
   if ($('#cover')) $('#cover').onclick = async () => { r.coverItemId = it.id; await DB.put('reports', r); toast('Se usará en la portada'); route(); };
   if ($('#annot')) $('#annot').onclick = async () => {
@@ -928,12 +1016,13 @@ const Backup = {
 // ---------- Router ----------
 async function route() {
   urls.splice(0).forEach(u => URL.revokeObjectURL(u));
-  const [, kind, id] = location.hash.split('/');
+  const [, kind, id, id2] = location.hash.split('/');
   try {
     if (kind === 'c') await viewClient(id);
     else if (kind === 'f') await viewHome(id);
     else if (kind === 'r') await viewReport(id);
     else if (kind === 'i') await viewItem(id);
+    else if (kind === 'e') await viewEntry(id, id2);
     else if (kind === 'settings') await viewSettings();
     else if (kind === 'clientes') await viewClients();
     else await viewHome();
