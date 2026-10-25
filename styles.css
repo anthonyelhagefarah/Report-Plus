@@ -162,3 +162,8 @@ main:has(#newItem) { padding-bottom: calc(env(safe-area-inset-bottom) + 150px); 
 .bmedia .vbadge { top: 6px; left: 6px; }
 .bitem label { margin: 4px 0 0; }
 .entry-add { margin: 12px 0 30px; }
+
+.cover-pick { margin-top: 0; }
+.cover-prev { position: relative; margin: 6px 0; border-radius: 10px; overflow: hidden; max-height: 180px; }
+.cover-prev img { width: 100%; max-height: 180px; object-fit: cover; display: block; }
+.cover-prev .kebab { position: absolute; top: 6px; right: 6px; background: rgba(0,0,0,.6); color: #fff; border-radius: 50%; width: 34px; height: 34px; padding: 0; font-size: 16px; }

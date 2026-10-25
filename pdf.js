@@ -30,8 +30,7 @@ const Exporter = (() => {
 
   async function buildPdf({ company, client, report, sections, items }) {
     const { jsPDF } = window.jspdf;
-    const L = report.layout || { orientation: 'portrait', cols: 2, rows: 3 };
-    const doc = new jsPDF({ orientation: L.orientation, unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
     const M = 12, headerH = 14, footerH = 10;
     const accent = [15, 92, 140];
@@ -72,9 +71,9 @@ const Exporter = (() => {
         doc.textWithLink(`GPS: ${geo.lat}, ${geo.lng} (ver en mapa)`, W / 2 - doc.getTextWidth(`GPS: ${geo.lat}, ${geo.lng} (ver en mapa)`) / 2, y, { url: `https://www.google.com/maps?q=${geo.lat},${geo.lng}` });
         y += 7; doc.setFontSize(14); doc.setTextColor(70);
       }
-      const coverItem = items.find(i => i.id === report.coverItemId) || items.find(i => i.type === 'photo');
-      if (coverItem && report.coverImage !== false) {
-        const im = await toJpeg(coverItem.annotated || coverItem.blob || coverItem.thumb);
+      // Foto de portada solo si el usuario la eligió.
+      if (report.coverPhoto) {
+        const im = await toJpeg(report.coverPhoto);
         const maxW = W - 4 * M, maxH = H - y - 55;
         const k = Math.min(maxW / im.w, maxH / im.h);
         if (k > 0) { doc.addImage(im.data, 'JPEG', (W - im.w * k) / 2, y + 6, im.w * k, im.h * k); }
@@ -91,67 +90,90 @@ const Exporter = (() => {
       }
     }
 
-    const gap = 5;
-    const maxMeasures = Math.max(0, ...items.map(i => (i.measure || '').split('\n').filter(l => l.trim()).length));
-    const captionH = Math.min(30, 13 + Math.max(0, maxMeasures - 1) * 3.6);
-    const cellW = (W - 2 * M - gap * (L.cols - 1)) / L.cols;
-    let first = report.cover === false;
+    // Bloques: una foto/video por página; las fotos de una ráfaga van juntas, lado a lado.
+    const blocks = [];
+    const byEntry = new Map();
+    for (const it of items) {
+      if (it.entryId && byEntry.has(it.entryId)) { byEntry.get(it.entryId).items.push(it); continue; }
+      const b = { entryId: it.entryId || null, items: [it] };
+      if (it.entryId) byEntry.set(it.entryId, b);
+      blocks.push(b);
+    }
+    const textLinesFor = (it, width, withCaption, num) => {
+      const out = [];
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
+      if (withCaption) out.push({ bold: true, size: 12, lines: doc.splitTextToSize(`${num}. ${(it.caption || '').replace(/\n+/g, ' ')}`.trim(), width) });
+      const measures = (it.measure || '').split('\n').map(m => m.trim()).filter(Boolean);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+      if (measures.length) out.push({ bold: false, size: 11, lines: doc.splitTextToSize(`Nota / Medida: ${measures[0]}`, width).concat(...measures.slice(1).map(m => doc.splitTextToSize(m, width))) });
+      if (it.type === 'video') out.push({ italic: true, size: 9, lines: doc.splitTextToSize(`Video ${fmtDur(it.duration)} · se envía aparte como ${videoFiles.get(it.id).replace('videos/', '')}`, width) });
+      return out;
+    };
+    const lineH = size => size * 0.42;
+    const textHeight = groups => groups.reduce((h, g) => h + g.lines.length * lineH(g.size) + 1.5, 0);
+    const drawText = (groups, x, y) => {
+      for (const g of groups) {
+        doc.setFont('helvetica', g.bold ? 'bold' : g.italic ? 'italic' : 'normal'); doc.setFontSize(g.size); doc.setTextColor(g.italic ? 110 : 30);
+        doc.text(g.lines, x, y + lineH(g.size)); y += g.lines.length * lineH(g.size) + 1.5;
+      }
+    };
+    const drawMedia = async (it, x, y, w, h) => {
+      const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob);
+      if (!src) { doc.setFillColor(240); doc.rect(x, y, w, h, 'F'); return; }
+      const im = await toJpeg(src, 1800);
+      const k = Math.min(w / im.w, h / im.h);
+      const iw = im.w * k, ih = im.h * k, ix = x + (w - iw) / 2, iy = y;
+      doc.addImage(im.data, 'JPEG', ix, iy, iw, ih);
+      if (it.type === 'video') {
+        const cx = ix + iw / 2, cy = iy + ih / 2, r = Math.min(iw, ih) * 0.1;
+        doc.setFillColor(0, 0, 0); doc.circle(cx, cy, r, 'F');
+        doc.setFillColor(255, 255, 255);
+        doc.triangle(cx - r * 0.35, cy - r * 0.5, cx - r * 0.35, cy + r * 0.5, cx + r * 0.55, cy, 'F');
+        doc.setFillColor(220, 40, 40); doc.rect(ix, iy, 24, 6.5, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(255);
+        doc.text(`VIDEO ${fmtDur(it.duration)}`, ix + 12, iy + 4.5, { align: 'center' });
+      }
+      return ih;
+    };
 
-    for (const sec of sections) {
-      const secItems = items.filter(i => i.sectionId === sec.id);
-      if (!secItems.length) continue;
-      const perPage = L.cols * L.rows;
-      for (let p = 0; p < secItems.length; p += perPage) {
-        if (!first) doc.addPage(); first = false;
-        header();
+    let first = report.cover === false;
+    const newPage = () => { if (!first) doc.addPage(); first = false; header(); };
+    const top = headerH + 6, bottom = H - footerH - 4, width = W - 2 * M;
+    let num = 0;
+    for (const b of blocks) {
+      num++;
+      if (!b.entryId) {
+        const it = b.items[0];
+        newPage();
+        const groups = textLinesFor(it, width, true, num);
+        const th = textHeight(groups);
+        const ih = await drawMedia(it, M, top, width, bottom - top - th - 6);
+        drawText(groups, M, top + (ih || 0) + 5);
+        continue;
+      }
+      // Ráfaga: título una vez y las fotos de dos en dos, lado a lado, con su nota/medida.
+      const gap = 6, colW = (width - gap) / 2;
+      const title = cont => {
+        newPage();
         doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(...accent);
-        if (sections.length > 1) doc.text(sec.title + (p ? ' (cont.)' : ''), M, headerH + 7);
-        if (sec.text && !p) {
-          doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(60);
+        doc.text(`${num}. ${b.items[0].caption || 'Ráfaga'}${cont ? ' (cont.)' : ''}`, M, top + 5);
+        return top + 10;
+      };
+      let y = title(false);
+      for (let k = 0; k < b.items.length; k += 2) {
+        const pair = b.items.slice(k, k + 2);
+        const texts = pair.map(it => textLinesFor(it, colW, false, num));
+        const th = Math.max(...texts.map(textHeight));
+        const imgMax = Math.min(colW * 1.25, (bottom - top - 10) / 2 - th - 3);
+        if (y + imgMax + th + 3 > bottom) y = title(true);
+        let rowBottom = y;
+        for (let q = 0; q < pair.length; q++) {
+          const x = M + q * (colW + gap);
+          const ih = await drawMedia(pair[q], x, y, colW, imgMax) || 0;
+          drawText(texts[q], x, y + ih + 2);
+          rowBottom = Math.max(rowBottom, y + ih + 2 + textHeight(texts[q]));
         }
-        const textLines = sec.text && !p ? doc.splitTextToSize(sec.text, W - 2 * M).slice(0, 4) : [];
-        if (textLines.length) doc.text(textLines, M, headerH + 13);
-        const top = headerH + 11 + textLines.length * 4.5;
-        const cellH = (H - top - footerH - gap * (L.rows - 1)) / L.rows;
-        const imgH = cellH - captionH;
-        const page = secItems.slice(p, p + perPage);
-        for (let k = 0; k < page.length; k++) {
-          const it = page[k];
-          const x = M + (k % L.cols) * (cellW + gap);
-          const y = top + Math.floor(k / L.cols) * (cellH + gap);
-          const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob);
-          doc.setFillColor(245); doc.rect(x, y, cellW, imgH, 'F');
-          if (src) {
-            const im = await toJpeg(src);
-            const s = Math.min(cellW / im.w, imgH / im.h);
-            const iw = im.w * s, ih = im.h * s;
-            doc.addImage(im.data, 'JPEG', x + (cellW - iw) / 2, y + (imgH - ih) / 2, iw, ih);
-          }
-          if (it.type === 'video') {
-            const cx = x + cellW / 2, cy = y + imgH / 2, r = Math.min(cellW, imgH) * 0.12;
-            doc.setFillColor(0, 0, 0); doc.circle(cx, cy, r, 'F');
-            doc.setFillColor(255, 255, 255);
-            doc.triangle(cx - r * 0.35, cy - r * 0.5, cx - r * 0.35, cy + r * 0.5, cx + r * 0.55, cy, 'F');
-            doc.setFillColor(220, 40, 40); doc.rect(x, y, 22, 6, 'F');
-            doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(255);
-            doc.text(`VIDEO ${fmtDur(it.duration)}`, x + 11, y + 4.2, { align: 'center' });
-          }
-          doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(30);
-          const num = items.indexOf(it) + 1;
-          const capLines = doc.splitTextToSize(`${num}. ${(it.caption || '').replace(/\n+/g, ' ')}`.trim(), cellW).slice(0, 2);
-          const measures = (it.measure || '').split('\n').map(m => m.trim()).filter(Boolean);
-          const maxLines = Math.max(2, Math.floor((captionH - 1) / 3.6));
-          doc.text(capLines, x, y + imgH + 4);
-          if (measures.length) {
-            doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(50);
-            const ml = doc.splitTextToSize(`Nota / Medida: ${measures[0]}`, cellW).concat(...measures.slice(1).map(m => doc.splitTextToSize(`• ${m}`, cellW)));
-            doc.text(ml.slice(0, maxLines - capLines.length), x, y + imgH + 4 + capLines.length * 3.8);
-          }
-          if (it.type === 'video') {
-            doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(120);
-            doc.text(`Archivo: ${videoFiles.get(it.id)}`, x, y + imgH + captionH - 1.5);
-          }
-        }
+        y = rowBottom + gap;
       }
     }
 
@@ -177,5 +199,11 @@ const Exporter = (() => {
     return zip.generateAsync({ type: 'blob' });
   }
 
-  return { buildPdf, buildZip, slug };
+  // Archivos de video con el mismo nombre que aparece en el PDF, para enviarlos aparte.
+  function videoFilesFor(items) {
+    let n = 0;
+    return items.filter(i => i.type === 'video').map(i => new File([i.blob], videoName(i, ++n).replace('videos/', ''), { type: i.blob.type || 'video/mp4' }));
+  }
+
+  return { buildPdf, buildZip, slug, videoFilesFor };
 })();

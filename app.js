@@ -307,13 +307,23 @@ function quickCreateForm() {
       <button type="button" id="qgps" class="wide">📍 Guardar mi ubicación actual</button>
       <div id="qgeo" class="muted small"></div>
       <div id="qmap"></div>
+      <label>Foto de portada <small>(opcional)</small></label>
+      <div class="row cover-pick"><button type="button" data-cv="take">📷 Tomar foto</button><button type="button" data-cv="pick">🖼 Galería</button></div>
+      <div id="qcover"></div>
       <label>Teléfono<input name="phone" type="tel"></label>
       <label>Correo<input name="email" type="email"></label>
       <label>Notas<textarea name="notes" rows="2"></textarea></label>
       <div class="row end"><button value="cancel" formnovalidate>Cancelar</button><button value="ok" class="primary">Crear</button></div>
     </form>`;
     document.body.appendChild(d);
-    let geo = null;
+    let geo = null, cover = null;
+    d.querySelectorAll('[data-cv]').forEach(b => b.onclick = async () => {
+      const [f] = await pickFiles('image/*', { capture: b.dataset.cv === 'take' });
+      if (!f) return;
+      cover = f;
+      $('#qcover', d).innerHTML = `<div class="cover-prev"><img src="${URL.createObjectURL(f)}" alt=""><button type="button" class="kebab" id="qcoverdel" aria-label="Quitar">✕</button></div>`;
+      $('#qcoverdel', d).onclick = () => { cover = null; $('#qcover', d).innerHTML = ''; };
+    });
     $('#qgps', d).onclick = async e => {
       const g = await withLocation(e.currentTarget); if (!g) return;
       geo = g;
@@ -325,7 +335,7 @@ function quickCreateForm() {
       const out = {};
       if (ok) ['name', 'address', 'residential', 'phone', 'email', 'notes'].forEach(k => { out[k] = d.querySelector(`[name=${k}]`).value.trim(); });
       d.remove();
-      resolve(ok ? { ...out, geo } : null);
+      resolve(ok ? { ...out, geo, cover } : null);
     });
     d.showModal();
   });
@@ -390,7 +400,7 @@ async function viewHome(folderId) {
     if (!v || !v.name) return;
     const c = { id: DB.uid(), name: v.name, address: v.address, residential: v.residential, phone: v.phone, email: v.email, notes: v.notes, geo: v.geo || undefined, createdAt: Date.now(), updatedAt: Date.now() };
     await DB.put('clients', c);
-    const r = newReport(c.id, { title: v.name, location: v.address, geo: v.geo || undefined, folderId: folder ? folder.id : undefined });
+    const r = newReport(c.id, { title: v.name, location: v.address, geo: v.geo || undefined, folderId: folder ? folder.id : undefined, coverPhoto: v.cover || undefined });
     if (SECTION_TEMPLATES[v.tpl]) r.sections = SECTION_TEMPLATES[v.tpl].map(t => ({ id: DB.uid(), title: t, text: '' }));
     await DB.put('reports', r);
     location.hash = `#/r/${r.id}`;
@@ -539,10 +549,11 @@ async function viewReport(id) {
       ${c?.residential ? `<div>🏘 ${esc(c.residential)}</div>` : ''}
       ${geoLine(r.geo)}
       ${simple && r.geo ? mapEmbed(r.geo) : ''}
-      <div class="muted">${nPhotos} fotos · ${nVideos} videos · ${esc(LAYOUTS.find(l => l[0] === L.orientation && l[1] === L.cols && l[2] === L.rows)?.[3] || '')}</div>
+      <div class="muted">${nPhotos} fotos · ${nVideos} videos${r.coverPhoto ? ' · con foto de portada' : ''}</div>
       <div class="row wrap">
         <button class="primary" id="pdf">📄 PDF</button>
-        <button class="primary alt" id="zip">📦 PDF + videos (ZIP)</button>
+        ${nVideos ? '<button class="primary alt" id="send">📤 PDF + videos</button>' : ''}
+        <button id="coverbtn">🖼 Portada</button>
         <button id="here">📍 Ubicación</button>
         <button id="settings">⚙️ Ajustes</button>
         <button id="more">⋯</button>
@@ -633,16 +644,13 @@ async function viewReport(id) {
       { name: 'title', label: 'Título', value: r.title, required: true },
       { name: 'location', label: 'Ubicación', value: r.location },
       { name: 'date', label: 'Fecha', type: 'date', value: new Date(r.date).toISOString().slice(0, 10) },
-      { name: 'layout', label: 'Diseño de página', type: 'select', value: `${L.orientation}|${L.cols}|${L.rows}`, options: LAYOUTS.map(l => [`${l[0]}|${l[1]}|${l[2]}`, l[3]]) },
       { name: 'cover', label: 'Incluir portada', type: 'checkbox', value: r.cover !== false },
-      { name: 'coverImage', label: 'Foto en la portada', type: 'checkbox', value: r.coverImage !== false },
       { name: 'notes', label: 'Observaciones generales', value: r.notes, type: 'textarea' },
     ]);
     if (!v) return;
-    const [orientation, cols, rows] = v.layout.split('|');
     Object.assign(r, {
-      title: v.title, location: v.location, notes: v.notes, cover: v.cover, coverImage: v.coverImage,
-      date: v.date ? new Date(v.date + 'T12:00').getTime() : r.date, layout: { orientation, cols: +cols, rows: +rows },
+      title: v.title, location: v.location, notes: v.notes, cover: v.cover,
+      date: v.date ? new Date(v.date + 'T12:00').getTime() : r.date,
     });
     if (clientPart.length) {
       const oldName = c.name;
@@ -655,17 +663,34 @@ async function viewReport(id) {
 
   const entryCap = Object.fromEntries((r.entries || []).map(e => [e.id, e.caption]));
   const exportData = async () => ({ company: await DB.getSettings(), client: c || {}, report: r, sections: r.sections,
-    items: r.sections.flatMap(s => items.filter(i => i.sectionId === s.id)).map(i => (i.entryId in entryCap ? { ...i, caption: entryCap[i.entryId] } : i)) });
+    items: [...items].sort((a, b) => a.order - b.order).map(i => (i.entryId in entryCap ? { ...i, caption: entryCap[i.entryId] } : i)) });
   const busy = async (btn, fn) => { btn.disabled = true; const t = btn.textContent; btn.textContent = 'Generando…'; try { await fn(); } catch (e) { console.error(e); toast('Error: ' + e.message, 5000); } btn.disabled = false; btn.textContent = t; };
   const base = Exporter.slug(r.title) || 'reporte';
   $('#pdf').onclick = e => busy(e.target, async () => {
     const { pdf } = await Exporter.buildPdf(await exportData());
     await shareOrDownload(pdf, `${base}.pdf`, r.title);
   });
-  $('#zip').onclick = e => busy(e.target, async () => {
-    const zip = await Exporter.buildZip(await exportData());
-    await shareOrDownload(zip, `${base}.zip`, r.title);
+  // PDF con las fotos + los videos como archivos aparte, enviados juntos (WhatsApp, correo…).
+  if ($('#send')) $('#send').onclick = e => busy(e.target, async () => {
+    const data = await exportData();
+    const { pdf } = await Exporter.buildPdf(data);
+    const files = [new File([pdf], `${base}.pdf`, { type: 'application/pdf' }), ...Exporter.videoFilesFor(data.items)];
+    if (navigator.canShare && navigator.canShare({ files })) {
+      try { await navigator.share({ files, title: r.title }); return; } catch (err) { if (err.name === 'AbortError') return; }
+    }
+    files.forEach(f => download(f, f.name));
   });
+  $('#coverbtn').onclick = async () => {
+    const opts = [['take', '📷 Tomar foto'], ['pick', '🖼 Elegir de galería']];
+    if (r.coverPhoto) opts.push(['see', '👁 Ver portada actual'], ['del', 'Quitar foto de portada', 'danger']);
+    const a = await actionSheet('Foto de portada', opts);
+    if (a === 'take' || a === 'pick') {
+      const [f] = await pickFiles('image/*', { capture: a === 'take' });
+      if (f) { r.coverPhoto = f; await DB.put('reports', r); toast('Foto de portada guardada'); route(); }
+    }
+    if (a === 'see') openViewer(r.coverPhoto);
+    if (a === 'del') { delete r.coverPhoto; await DB.put('reports', r); route(); }
+  };
   $('#more').onclick = async () => {
     const v = await form('Más opciones', [{ name: 'act', label: 'Acción', type: 'select', value: 'share', options: [
       ['share', 'Compartir reporte editable (.rplus)'], ['dup', 'Duplicar reporte'], ['del', 'Eliminar reporte'],
@@ -877,7 +902,7 @@ async function viewItem(id) {
       <label ${r.sections.length > 1 ? '' : 'hidden'}>Sección<select id="section">${r.sections.map(s => `<option value="${s.id}" ${s.id === it.sectionId ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}</select></label>
       <div class="row wrap">
         <button id="up">↑ Mover antes</button><button id="down">↓ Mover después</button>
-        ${it.type === 'photo' ? `<button id="cover">${r.coverItemId === it.id ? '★ Es portada' : '☆ Usar en portada'}</button>` : ''}
+        ${it.type === 'photo' ? '<button id="cover">☆ Usar en portada</button>' : ''}
         <button id="save1">⬇ Descargar archivo</button>
         <button id="del" class="danger">Eliminar</button>
       </div>
@@ -917,7 +942,7 @@ async function viewItem(id) {
     if (!confirm('¿Eliminar este elemento?')) return;
     await DB.del('items', id); location.hash = inEntry ? `#/e/${r.id}/${it.entryId}` : `#/r/${r.id}`;
   };
-  if ($('#cover')) $('#cover').onclick = async () => { r.coverItemId = it.id; await DB.put('reports', r); toast('Se usará en la portada'); route(); };
+  if ($('#cover')) $('#cover').onclick = async () => { r.coverPhoto = it.annotated || it.blob; await DB.put('reports', r); toast('Se usará en la portada'); };
   if ($('#annot')) $('#annot').onclick = async () => {
     await save();
     const res = await Annotator.open(it.blob, it.shapes || []);
