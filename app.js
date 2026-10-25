@@ -122,6 +122,7 @@ function getLocation() {
     }, err => reject(new Error(err.code === 1 ? 'Permiso de ubicación denegado. Actívalo en los ajustes del navegador.' : 'No se pudo obtener la ubicación')), { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
   });
 }
+const mapEmbed = g => { const k = 0.0025; return `<iframe class="map" loading="lazy" title="Mapa" src="https://www.openstreetmap.org/export/embed.html?bbox=${g.lng - k},${g.lat - k},${g.lng + k},${g.lat + k}&layer=mapnik&marker=${g.lat},${g.lng}"></iframe>`; };
 const mapUrl = g => `https://www.google.com/maps?q=${g.lat},${g.lng}`;
 const geoLine = g => g ? `<div>🛰 <a href="${mapUrl(g)}" target="_blank" rel="noopener">${g.lat}, ${g.lng}</a> <small class="muted">(±${g.accuracy} m · ver en mapa)</small></div>` : '';
 
@@ -311,9 +312,12 @@ function quickCreateForm() {
     d.innerHTML = `<form method="dialog"><h2>Nuevo reporte</h2>
       <label>Nombre del cliente<input name="name" required></label>
       <label>Dirección<div class="row inline"><input name="address" class="grow"><button type="button" id="qgps" class="primary" title="Usar mi ubicación">📍</button></div></label>
-      <div id="qgeo" class="muted small"></div>
+      <div id="qgeo" class="muted small">Pulsa 📍 para guardar tu ubicación actual y verla en el mapa.</div>
+      <div id="qmap"></div>
       <label>Nombre del residencial<input name="residential"></label>
       <label>Teléfono<input name="phone" type="tel"></label>
+      <label>Correo<input name="email" type="email"></label>
+      <label>Notas<textarea name="notes" rows="2"></textarea></label>
       <label>Áreas del reporte<select name="tpl">${Object.keys(SECTION_TEMPLATES).map(k => `<option value="${k}">${k}: ${SECTION_TEMPLATES[k].slice(0, 4).join(', ')}…</option>`).join('')}<option value="">Una sola área (General)</option></select></label>
       <div class="row end"><button value="cancel" formnovalidate>Cancelar</button><button value="ok" class="primary">Crear</button></div>
     </form>`;
@@ -324,12 +328,13 @@ function quickCreateForm() {
       geo = g;
       d.querySelector('[name=address]').value = g.address;
       if (g.residential && !d.querySelector('[name=residential]').value) d.querySelector('[name=residential]').value = g.residential;
-      $('#qgeo', d).textContent = `🛰 GPS guardado: ${g.lat}, ${g.lng} (±${g.accuracy} m)`;
+      $('#qgeo', d).innerHTML = `🛰 GPS guardado: ${g.lat}, ${g.lng} (±${g.accuracy} m) · <a href="${mapUrl(g)}" target="_blank" rel="noopener">Abrir en Google Maps</a>`;
+      $('#qmap', d).innerHTML = mapEmbed(g);
     };
     d.addEventListener('close', () => {
       const ok = d.returnValue === 'ok';
       const out = {};
-      if (ok) ['name', 'address', 'residential', 'phone', 'tpl'].forEach(k => { out[k] = d.querySelector(`[name=${k}]`).value.trim(); });
+      if (ok) ['name', 'address', 'residential', 'phone', 'email', 'notes', 'tpl'].forEach(k => { out[k] = d.querySelector(`[name=${k}]`).value.trim(); });
       d.remove();
       resolve(ok ? { ...out, geo } : null);
     });
@@ -337,42 +342,107 @@ function quickCreateForm() {
   });
 }
 
-async function viewHome() {
-  setHeader('Report Plus');
-  const reports = (await DB.all('reports')).sort((a, b) => b.date - a.date);
+// Menú de opciones (hoja inferior). options: [[clave, texto, clase?]]
+function actionSheet(title, options) {
+  return new Promise(resolve => {
+    const d = document.createElement('dialog');
+    d.className = 'sheet actions';
+    d.innerHTML = `<form method="dialog">${title ? `<h2>${esc(title)}</h2>` : ''}
+      ${options.map(([k, t, cls]) => `<button value="${esc(k)}" class="wide ${cls || ''}">${esc(t)}</button>`).join('')}
+      <button value="" class="wide ghost">Cancelar</button></form>`;
+    document.body.appendChild(d);
+    d.addEventListener('close', () => { const v = d.returnValue; d.remove(); resolve(v || null); });
+    d.addEventListener('click', e => { if (e.target === d) d.close(); });
+    d.showModal();
+  });
+}
+const getFolders = async () => (await DB.get('settings', 'folders')) || [];
+const saveFolders = f => DB.put('settings', f, 'folders');
+const fmtWhen = t => new Date(t).toLocaleString('es', { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+async function viewHome(folderId) {
+  const folders = await getFolders();
+  const folder = folderId && folders.find(f => f.id === folderId);
+  if (folderId && !folder) return (location.hash = '#/');
+  setHeader(folder ? folder.name : 'Report Plus', folder ? '#/' : null);
+  const all = (await DB.all('reports')).sort((a, b) => b.date - a.date);
   const clients = Object.fromEntries((await DB.all('clients')).map(c => [c.id, c]));
-  view.innerHTML = `
-    ${modeSwitch()}
-    <div class="toolbar"><input type="search" id="q" placeholder="Buscar cliente o dirección…"><button class="primary" id="add">+ Crear</button></div>
-    <ul class="list" id="list">
-      ${reports.map(r => {
-        const c = clients[r.clientId] || {};
-        const name = c.name || r.title;
-        const search = [name, r.title, r.location, c.address, c.residential, c.phone].filter(Boolean).join(' ').toLowerCase();
-        return `<li data-name="${esc(search)}"><a href="#/r/${r.id}">
-          <div class="avatar">${esc((name || '?').slice(0, 1).toUpperCase())}</div>
-          <div class="grow"><b>${esc(name)}</b>${r.title && r.title !== name ? ` <span class="muted">· ${esc(r.title)}</span>` : ''}
-            <small>${esc([r.location || c.address, c.residential].filter(Boolean).join(' · '))}</small>
-            <small>${fmtDate(r.date)}${r.geo || c.geo ? ' · 🛰 GPS' : ''}</small></div>
-          <span class="chev">›</span></a></li>`;
-      }).join('')}
-    </ul>
-    ${reports.length ? '' : `<div class="empty"><p>Aún no tienes reportes.</p><p>Pulsa <b>+ Crear</b> para empezar.</p></div>`}`;
-  bindModeSwitch();
-  $('#q').oninput = e => {
-    const q = e.target.value.toLowerCase();
-    view.querySelectorAll('#list li').forEach(li => { li.hidden = !li.dataset.name.includes(q); });
+  const label = r => {
+    const c = clients[r.clientId] || {};
+    const name = c.name || r.title;
+    const place = c.residential || r.location || c.address;
+    return { name, text: place ? `${name} (${place})` : name, search: [name, r.title, r.location, c.address, c.residential, c.phone].filter(Boolean).join(' ').toLowerCase() };
   };
-  $('#add').onclick = async () => {
+  const reports = all.filter(r => folder ? r.folderId === folder.id : !r.folderId);
+  const reportRow = (r, hidden) => {
+    const l = label(r);
+    return `<li data-name="${esc(l.search)}" data-report="${r.id}" ${hidden ? 'hidden' : ''}><a href="#/r/${r.id}"><span class="ico">📋</span><div class="grow"><b>${esc(l.text)}</b></div></a><button class="kebab" data-menu="${r.id}" aria-label="Opciones">⋮</button></li>`;
+  };
+  view.innerHTML = `
+    ${folder ? '' : modeSwitch()}
+    <div class="toolbar"><input type="search" id="q" placeholder="Buscar cliente o dirección…"></div>
+    <ul class="list" id="list">
+      ${folder ? '' : folders.map(f => `<li data-name="${esc(f.name.toLowerCase())}" data-folder-row><a href="#/f/${f.id}"><span class="ico">📁</span><div class="grow"><b>${esc(f.name)}</b> <small class="inline-count">${all.filter(r => r.folderId === f.id).length}</small></div></a><button class="kebab" data-fmenu="${f.id}" aria-label="Opciones">⋮</button></li>`).join('')}
+      ${reports.map(r => reportRow(r)).join('')}
+      ${folder ? '' : all.filter(r => r.folderId).map(r => reportRow(r, true).replace('<li ', '<li data-infolder ')).join('')}
+    </ul>
+    ${reports.length || (!folder && folders.length) ? '' : `<div class="empty"><p>${folder ? 'Carpeta vacía.' : 'Aún no tienes reportes.'}</p><p>Pulsa <b>+</b> para crear uno.</p></div>`}
+    <button class="fab" id="add" aria-label="Crear">+</button>`;
+  if (!folder) bindModeSwitch();
+  $('#q').oninput = e => {
+    const q = e.target.value.trim().toLowerCase();
+    view.querySelectorAll('#list li').forEach(li => {
+      // Al buscar se muestran también los reportes que están dentro de carpetas.
+      li.hidden = q ? !li.dataset.name.includes(q) : li.hasAttribute('data-infolder');
+    });
+  };
+  const createReport = async () => {
     const v = await quickCreateForm();
     if (!v || !v.name) return;
-    const c = { id: DB.uid(), name: v.name, address: v.address, residential: v.residential, phone: v.phone, geo: v.geo || undefined, createdAt: Date.now(), updatedAt: Date.now() };
+    const c = { id: DB.uid(), name: v.name, address: v.address, residential: v.residential, phone: v.phone, email: v.email, notes: v.notes, geo: v.geo || undefined, createdAt: Date.now(), updatedAt: Date.now() };
     await DB.put('clients', c);
-    const r = newReport(c.id, { title: v.name, location: v.address, geo: v.geo || undefined });
+    const r = newReport(c.id, { title: v.name, location: v.address, geo: v.geo || undefined, folderId: folder ? folder.id : undefined });
     if (SECTION_TEMPLATES[v.tpl]) r.sections = SECTION_TEMPLATES[v.tpl].map(t => ({ id: DB.uid(), title: t, text: '' }));
     await DB.put('reports', r);
     location.hash = `#/r/${r.id}`;
   };
+  $('#add').onclick = async () => {
+    if (folder) return createReport();
+    const a = await actionSheet('Crear', [['report', '📋 Nuevo reporte', 'primary'], ['folder', '📁 Nueva carpeta']]);
+    if (a === 'report') return createReport();
+    if (a === 'folder') {
+      const v = await form('Nueva carpeta', [{ name: 'name', label: 'Nombre', value: '', required: true }], 'Crear');
+      if (!v || !v.name) return;
+      folders.push({ id: DB.uid(), name: v.name }); await saveFolders(folders); route();
+    }
+  };
+  view.querySelectorAll('[data-menu]').forEach(b => b.onclick = async () => {
+    const r = all.find(x => x.id === b.dataset.menu);
+    const opts = [['open', 'Abrir']];
+    if (folders.length) opts.push(['move', '📁 Mover a carpeta']);
+    if (r.folderId) opts.push(['out', 'Sacar de la carpeta']);
+    opts.push(['del', '🗑 Eliminar reporte', 'danger']);
+    const a = await actionSheet(label(r).text, opts);
+    if (a === 'open') location.hash = `#/r/${r.id}`;
+    if (a === 'move') {
+      const v = await form('Mover a carpeta', [{ name: 'f', label: 'Carpeta', type: 'select', value: r.folderId || folders[0].id, options: folders.map(f => [f.id, f.name]) }], 'Mover');
+      if (v) { r.folderId = v.f; await DB.put('reports', r); route(); }
+    }
+    if (a === 'out') { delete r.folderId; await DB.put('reports', r); route(); }
+    if (a === 'del' && confirm('¿Eliminar este reporte con todas sus fotos y videos?')) { await DB.deleteReport(r.id); route(); }
+  });
+  view.querySelectorAll('[data-fmenu]').forEach(b => b.onclick = async () => {
+    const f = folders.find(x => x.id === b.dataset.fmenu);
+    const a = await actionSheet(f.name, [['rename', 'Cambiar nombre'], ['del', '🗑 Eliminar carpeta (los reportes se conservan)', 'danger']]);
+    if (a === 'rename') {
+      const v = await form('Cambiar nombre', [{ name: 'name', label: 'Nombre', value: f.name, required: true }]);
+      if (v && v.name) { f.name = v.name; await saveFolders(folders); route(); }
+    }
+    if (a === 'del' && confirm(`¿Eliminar la carpeta "${f.name}"? Los reportes quedan en el inicio.`)) {
+      for (const r of all.filter(x => x.folderId === f.id)) { delete r.folderId; await DB.put('reports', r); }
+      await saveFolders(folders.filter(x => x !== f)); route();
+    }
+  });
 }
 
 async function viewClients() {
@@ -486,6 +556,7 @@ async function viewReport(id) {
       <div><b>${esc(c?.name)}</b> · ${fmtDate(r.date)}${r.location ? ' · ' + esc(r.location) : ''}</div>
       ${c?.residential ? `<div>🏘 ${esc(c.residential)}</div>` : ''}
       ${geoLine(r.geo)}
+      ${simple && r.geo ? mapEmbed(r.geo) : ''}
       <div class="muted">${nPhotos} fotos · ${nVideos} videos · ${esc(LAYOUTS.find(l => l[0] === L.orientation && l[1] === L.cols && l[2] === L.rows)?.[3] || '')}</div>
       <div class="row wrap">
         <button class="primary" id="pdf">📄 PDF</button>
@@ -495,7 +566,7 @@ async function viewReport(id) {
         <button id="more">⋯</button>
       </div>
     </section>
-    ${r.sections.map(s => {
+    ${simple ? simpleReportBody(r, items) : r.sections.map(s => {
       const its = items.filter(i => i.sectionId === s.id);
       return `<section class="section" data-sec="${s.id}">
         <div class="sec-head"><h2 class="grow">${esc(s.title)} <small>(${its.length})</small></h2><button data-a="secedit" title="Editar sección">✎</button></div>
@@ -515,7 +586,8 @@ async function viewReport(id) {
         </div>
       </section>`;
     }).join('')}
-    <button class="ghost wide" id="addsec">+ Agregar sección</button>`;
+    ${simple ? '' : '<button class="ghost wide" id="addsec">+ Agregar sección</button>'}`;
+  if (simple) bindSimpleReport(r, items);
 
   view.querySelectorAll('.section').forEach(el => {
     const sid = el.dataset.sec;
@@ -551,7 +623,7 @@ async function viewReport(id) {
     });
   });
 
-  $('#addsec').onclick = async () => {
+  if ($('#addsec')) $('#addsec').onclick = async () => {
     const v = await form('Agregar secciones', [
       { name: 'title', label: 'Título de la nueva sección', value: '' },
       { name: 'tpl', label: 'o agregar desde plantilla', type: 'select', value: '', options: [['', '—'], ...Object.keys(SECTION_TEMPLATES).map(k => [k, k])] },
@@ -631,6 +703,73 @@ async function viewReport(id) {
       await DB.deleteReport(id); location.hash = simple ? '#/' : `#/c/${r.clientId}`;
     }
   };
+}
+
+// ---------- Reporte en modo simple: lista de fotos/videos con su texto al lado ----------
+let currentArea = {};
+function simpleReportBody(r, items) {
+  const area = currentArea[r.id] && r.sections.some(s => s.id === currentArea[r.id]) ? currentArea[r.id] : r.sections[0].id;
+  currentArea[r.id] = area;
+  const multi = r.sections.length > 1;
+  const groups = r.sections.map(s => [s, items.filter(i => i.sectionId === s.id)]).filter(([, its]) => its.length);
+  const row = it => {
+    const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob);
+    const text = [it.caption, it.measure].filter(Boolean).join('\n');
+    return `<li class="irow"><div class="when">${fmtWhen(it.createdAt)}</div>
+      <a href="#/i/${it.id}" class="irow-main">
+        <span class="ithumb">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : '🎥'}${it.type === 'video' ? `<span class="vbadge">▶ ${fmtDur(it.duration)}</span>` : ''}</span>
+        <span class="itext">${text ? esc(text) : '<span class="muted">Toca para agregar descripción y medidas</span>'}</span>
+      </a><button class="kebab" data-imenu="${it.id}" aria-label="Opciones">⋮</button></li>`;
+  };
+  return `
+    ${groups.length ? groups.map(([s, its]) => `
+      ${multi ? `<h3 class="area-head">${esc(s.title)} <small>(${its.length})</small></h3>` : ''}
+      <ul class="ilist">${its.map(row).join('')}</ul>`).join('')
+    : '<div class="empty"><p>Todavía no hay fotos ni videos.</p><p>Usa los botones de abajo para empezar.</p></div>'}
+    <div class="capture-bar">
+      <label class="area-pick">Área <select id="area">${r.sections.map(s => `<option value="${s.id}" ${s.id === area ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}<option value="__new">➕ Nueva área…</option></select></label>
+      <div class="cap-btns">
+        <button data-a="cam">📸<small>Ráfaga</small></button>
+        <button data-a="photo">📷<small>Foto</small></button>
+        <button data-a="video">🎥<small>Video</small></button>
+        <button data-a="gallery">🖼<small>Galería</small></button>
+      </div>
+    </div>`;
+}
+
+function bindSimpleReport(r, items) {
+  const sel = $('#area');
+  sel.onchange = async () => {
+    if (sel.value !== '__new') { currentArea[r.id] = sel.value; return; }
+    const v = await form('Nueva área', [{ name: 'title', label: 'Nombre (ej. Habitación 2, Balcón)', value: '', required: true }], 'Agregar');
+    if (v && v.title) {
+      const s = { id: DB.uid(), title: v.title, text: '' };
+      r.sections.push(s); currentArea[r.id] = s.id;
+      await DB.put('reports', r);
+    }
+    route();
+  };
+  $('.capture-bar').addEventListener('click', async e => {
+    const b = e.target.closest('button[data-a]'); if (!b) return;
+    const sid = currentArea[r.id];
+    const a = b.dataset.a;
+    if (a === 'cam') { await openCamera(f => addMedia(r, sid, [f])); return route(); }
+    const f = a === 'photo' ? await pickFiles('image/*', { capture: true })
+      : a === 'video' ? await pickFiles('video/*', { capture: true })
+      : await pickFiles('image/*,video/*', { multiple: true });
+    if (f.length) { if (a === 'gallery') toast('Importando…'); await addMedia(r, sid, f); route(); }
+  });
+  view.querySelectorAll('[data-imenu]').forEach(b => b.onclick = async () => {
+    const it = items.find(x => x.id === b.dataset.imenu);
+    const opts = [['open', 'Abrir'], ...(r.sections.length > 1 ? [['area', 'Cambiar de área']] : []), ['del', '🗑 Eliminar', 'danger']];
+    const a = await actionSheet(it.type === 'video' ? 'Video' : 'Foto', opts);
+    if (a === 'open') location.hash = `#/i/${it.id}`;
+    if (a === 'area') {
+      const v = await form('Cambiar de área', [{ name: 's', label: 'Área', type: 'select', value: it.sectionId, options: r.sections.map(s => [s.id, s.title]) }]);
+      if (v) { it.sectionId = v.s; await DB.put('items', it); route(); }
+    }
+    if (a === 'del' && confirm('¿Eliminar este elemento?')) { await DB.del('items', it.id); route(); }
+  });
 }
 
 async function viewItem(id) {
@@ -798,6 +937,7 @@ async function route() {
   const [, kind, id] = location.hash.split('/');
   try {
     if (kind === 'c') await viewClient(id);
+    else if (kind === 'f') await viewHome(id);
     else if (kind === 'r') await viewReport(id);
     else if (kind === 'i') await viewItem(id);
     else if (kind === 'settings') await viewSettings();
