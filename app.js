@@ -288,13 +288,10 @@ function openViewer(blob) {
 }
 
 // ---------- Vistas ----------
-// Modo simple: inicio con buscador, Crear y todos los reportes. Modo detallado: clientes → reportes.
-const getMode = () => { try { return localStorage.getItem('rp-mode') || 'simple'; } catch (e) { return 'simple'; } };
-const setMode = m => { try { localStorage.setItem('rp-mode', m); } catch (e) { /* sin almacenamiento */ } };
-const modeSwitch = () => `<div class="modes">${[['simple', 'Modo simple'], ['detallado', 'Modo detallado']].map(([m, t]) => `<button data-mode="${m}" class="${getMode() === m ? 'on' : ''}">${t}</button>`).join('')}</div>`;
-function bindModeSwitch() {
-  view.querySelectorAll('[data-mode]').forEach(b => { b.onclick = () => { setMode(b.dataset.mode); route(); }; });
-}
+// Una sola forma de trabajar: inicio con buscador, carpetas y reportes; cada reporte con sus áreas.
+const getMode = () => 'simple';
+const modeSwitch = () => '';
+const bindModeSwitch = () => {};
 
 function newReport(clientId, fields) {
   return {
@@ -941,7 +938,7 @@ async function route() {
     else if (kind === 'r') await viewReport(id);
     else if (kind === 'i') await viewItem(id);
     else if (kind === 'settings') await viewSettings();
-    else if (kind === 'clientes' || getMode() === 'detallado') await viewClients();
+    else if (kind === 'clientes') await viewClients();
     else await viewHome();
   } catch (e) { console.error(e); view.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
   window.scrollTo(0, 0);
