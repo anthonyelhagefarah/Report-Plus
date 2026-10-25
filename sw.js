@@ -1,5 +1,5 @@
 // Permite usar la app sin conexión (en obra o en campo).
-const CACHE = 'reportplus-v13';
+const CACHE = 'reportplus-v14';
 const ASSETS = ['./', 'index.html', 'styles.css', 'db.js', 'annotate.js', 'pdf.js', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png',
   'vendor/jspdf.umd.min.js', 'vendor/jszip.min.js'];
 self.addEventListener('install', e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())));

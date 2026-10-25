@@ -144,7 +144,7 @@ const Exporter = (() => {
           doc.text(capLines, x, y + imgH + 4);
           if (measures.length) {
             doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(50);
-            const ml = doc.splitTextToSize(`Medidas: ${measures[0]}`, cellW).concat(...measures.slice(1).map(m => doc.splitTextToSize(`• ${m}`, cellW)));
+            const ml = doc.splitTextToSize(`Nota / Medida: ${measures[0]}`, cellW).concat(...measures.slice(1).map(m => doc.splitTextToSize(`• ${m}`, cellW)));
             doc.text(ml.slice(0, maxLines - capLines.length), x, y + imgH + 4 + capLines.length * 3.8);
           }
           if (it.type === 'video') {

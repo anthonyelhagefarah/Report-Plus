@@ -729,7 +729,7 @@ function newItemSheet(r) {
     const area = currentArea[r.id];
     d.innerHTML = `<form method="dialog"><h2>Agregar</h2>
       <label>Descripción<textarea name="caption" class="autogrow" rows="1" placeholder="Ej. Oficina"></textarea></label>
-      <label>Medida <small>(en Ráfaga cada foto lleva su propia medida)</small><textarea name="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36"></textarea></label>
+      <label>Nota / Medida <small>(en Ráfaga cada foto lleva la suya)</small><textarea name="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36"></textarea></label>
       <div class="cap-btns">
         <button type="button" data-a="cam">📸<small>Ráfaga</small></button>
         <button type="button" data-a="photo">📷<small>Foto</small></button>
@@ -817,7 +817,7 @@ async function viewEntry(rid, eid) {
       return `<li class="card bitem" data-id="${it.id}">
         <div class="bhead"><b>${it.type === 'video' ? 'Video' : 'Foto'} ${n + 1}</b><button class="kebab" data-bdel="${it.id}" aria-label="Eliminar">🗑</button></div>
         <a href="#/i/${it.id}" class="bmedia">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : '🎥'}${it.type === 'video' ? `<span class="vbadge">▶ ${fmtDur(it.duration)}</span>` : ''}</a>
-        <label>Medida<textarea class="autogrow bmeasure" rows="1" placeholder="Ej. 36 x 48">${esc(it.measure)}</textarea></label>
+        <label>Nota / Medida<textarea class="autogrow bmeasure" rows="1" placeholder="Ej. 36 x 48">${esc(it.measure)}</textarea></label>
       </li>`;
     }).join('')}</ul>
     ${its.length ? '' : '<div class="empty"><p>Sin fotos todavía.</p></div>'}
@@ -873,7 +873,7 @@ async function viewItem(id) {
     </div>
     <section class="card">
       <label ${inEntry ? 'hidden' : ''}>Descripción<textarea id="caption" class="autogrow" rows="1" placeholder="Ej. Oficina">${esc(it.caption)}</textarea></label>
-      <label>Medidas <small>(una por línea)</small><textarea id="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36">${esc(it.measure)}</textarea></label>
+      <label>Nota / Medida<textarea id="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36">${esc(it.measure)}</textarea></label>
       <label ${r.sections.length > 1 ? '' : 'hidden'}>Sección<select id="section">${r.sections.map(s => `<option value="${s.id}" ${s.id === it.sectionId ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}</select></label>
       <div class="row wrap">
         <button id="up">↑ Mover antes</button><button id="down">↓ Mover después</button>
