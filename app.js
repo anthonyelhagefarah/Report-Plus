@@ -108,17 +108,10 @@ async function addMedia(report, sectionId, files) {
 function getLocation() {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('Este teléfono no permite obtener la ubicación'));
-    navigator.geolocation.getCurrentPosition(async pos => {
+    // Solo coordenadas: la dirección y el residencial los escribe el usuario.
+    navigator.geolocation.getCurrentPosition(pos => {
       const { latitude: lat, longitude: lng, accuracy } = pos.coords;
-      let address = '', residential = '';
-      try {
-        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=es`);
-        const j = await r.json();
-        const a = j.address || {};
-        residential = a.residential || a.neighbourhood || a.suburb || a.quarter || '';
-        address = [[a.road, a.house_number].filter(Boolean).join(' '), a.suburb || a.neighbourhood, a.city || a.town || a.village, a.state].filter(Boolean).join(', ') || j.display_name || '';
-      } catch (e) { /* sin internet: se guardan solo las coordenadas */ }
-      resolve({ residential: residential, lat: +lat.toFixed(6), lng: +lng.toFixed(6), accuracy: Math.round(accuracy), address: address || `${lat.toFixed(6)}, ${lng.toFixed(6)}`, at: Date.now() });
+      resolve({ lat: +lat.toFixed(6), lng: +lng.toFixed(6), accuracy: Math.round(accuracy), at: Date.now() });
     }, err => reject(new Error(err.code === 1 ? 'Permiso de ubicación denegado. Actívalo en los ajustes del navegador.' : 'No se pudo obtener la ubicación')), { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
   });
 }
@@ -308,10 +301,12 @@ function quickCreateForm() {
     d.className = 'sheet';
     d.innerHTML = `<form method="dialog"><h2>Nuevo cliente</h2>
       <label>Nombre del cliente<input name="name" required></label>
-      <label>Dirección<div class="row inline"><input name="address" class="grow"><button type="button" id="qgps" class="primary" title="Usar mi ubicación">📍</button></div></label>
-      <div id="qgeo" class="muted small">Pulsa 📍 para guardar tu ubicación actual y verla en el mapa.</div>
-      <div id="qmap"></div>
+      <label>Dirección<input name="address"></label>
       <label>Nombre del residencial<input name="residential"></label>
+      <label>Ubicación en el mapa</label>
+      <button type="button" id="qgps" class="wide">📍 Guardar mi ubicación actual</button>
+      <div id="qgeo" class="muted small"></div>
+      <div id="qmap"></div>
       <label>Teléfono<input name="phone" type="tel"></label>
       <label>Correo<input name="email" type="email"></label>
       <label>Notas<textarea name="notes" rows="2"></textarea></label>
@@ -323,8 +318,6 @@ function quickCreateForm() {
     $('#qgps', d).onclick = async e => {
       const g = await withLocation(e.currentTarget); if (!g) return;
       geo = g;
-      d.querySelector('[name=address]').value = g.address;
-      if (g.residential && !d.querySelector('[name=residential]').value) d.querySelector('[name=residential]').value = g.residential;
       $('#qgeo', d).innerHTML = `🛰 GPS guardado: ${g.lat}, ${g.lng} (±${g.accuracy} m) · <a href="${mapUrl(g)}" target="_blank" rel="noopener">Abrir en Google Maps</a>`;
       $('#qmap', d).innerHTML = mapEmbed(g);
     };
@@ -367,8 +360,7 @@ async function viewHome(folderId) {
   const label = r => {
     const c = clients[r.clientId] || {};
     const name = c.name || r.title;
-    const place = c.residential || r.location || c.address;
-    return { name, text: place ? `${name} (${place})` : name, search: [name, r.title, r.location, c.address, c.residential, c.phone].filter(Boolean).join(' ').toLowerCase() };
+    return { name, text: name, search: [name, r.title, r.location, c.address, c.residential, c.phone].filter(Boolean).join(' ').toLowerCase() };
   };
   const reports = all.filter(r => folder ? r.folderId === folder.id : !r.folderId);
   const reportRow = (r, hidden) => {
@@ -499,8 +491,7 @@ async function viewClient(id) {
   };
   $('#here').onclick = async e => {
     const g = await withLocation(e.target); if (!g) return;
-    if (c.address && !confirm(`¿Reemplazar la dirección del cliente por:\n${g.address}?`)) { c.geo = g; } else { c.address = g.address; c.geo = g; }
-    if (!c.residential && g.residential) c.residential = g.residential;
+    c.geo = g;
     await DB.put('clients', { ...c, updatedAt: Date.now() }); toast('Ubicación guardada'); route();
   };
   $('#del').onclick = async () => {
@@ -525,9 +516,7 @@ async function viewClient(id) {
       toast('Obteniendo ubicación…');
       try {
         r.geo = await getLocation();
-        if (!r.location) r.location = r.geo.address;
-        if (!c.address) { c.address = r.geo.address; c.geo = r.geo; }
-        if (!c.residential && r.geo.residential) c.residential = r.geo.residential;
+        if (!c.geo) c.geo = r.geo;
       } catch (e) { toast(e.message, 5000); }
     }
     await DB.put('reports', r);
@@ -631,7 +620,6 @@ async function viewReport(id) {
   $('#here').onclick = async e => {
     const g = await withLocation(e.target); if (!g) return;
     r.geo = g;
-    if (!r.location || confirm(`¿Usar esta dirección en el reporte?\n${g.address}`)) r.location = g.address;
     await DB.put('reports', r); toast('Ubicación guardada en el reporte'); route();
   };
   $('#settings').onclick = async () => {
