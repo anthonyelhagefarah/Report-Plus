@@ -105,7 +105,7 @@ const Exporter = (() => {
         if (!first) doc.addPage(); first = false;
         header();
         doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(...accent);
-        doc.text(sec.title + (p ? ' (cont.)' : ''), M, headerH + 7);
+        if (sections.length > 1) doc.text(sec.title + (p ? ' (cont.)' : ''), M, headerH + 7);
         if (sec.text && !p) {
           doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(60);
         }

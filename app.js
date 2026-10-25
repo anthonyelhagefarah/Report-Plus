@@ -310,7 +310,6 @@ function quickCreateForm() {
       <label>Teléfono<input name="phone" type="tel"></label>
       <label>Correo<input name="email" type="email"></label>
       <label>Notas<textarea name="notes" rows="2"></textarea></label>
-      <label>Áreas del reporte<select name="tpl">${Object.keys(SECTION_TEMPLATES).map(k => `<option value="${k}">${k}: ${SECTION_TEMPLATES[k].slice(0, 4).join(', ')}…</option>`).join('')}<option value="">Una sola área (General)</option></select></label>
       <div class="row end"><button value="cancel" formnovalidate>Cancelar</button><button value="ok" class="primary">Crear</button></div>
     </form>`;
     document.body.appendChild(d);
@@ -324,7 +323,7 @@ function quickCreateForm() {
     d.addEventListener('close', () => {
       const ok = d.returnValue === 'ok';
       const out = {};
-      if (ok) ['name', 'address', 'residential', 'phone', 'email', 'notes', 'tpl'].forEach(k => { out[k] = d.querySelector(`[name=${k}]`).value.trim(); });
+      if (ok) ['name', 'address', 'residential', 'phone', 'email', 'notes'].forEach(k => { out[k] = d.querySelector(`[name=${k}]`).value.trim(); });
       d.remove();
       resolve(ok ? { ...out, geo } : null);
     });
@@ -692,8 +691,7 @@ let currentArea = {};
 function simpleReportBody(r, items) {
   const area = currentArea[r.id] && r.sections.some(s => s.id === currentArea[r.id]) ? currentArea[r.id] : r.sections[0].id;
   currentArea[r.id] = area;
-  const multi = r.sections.length > 1;
-  const groups = r.sections.map(s => [s, items.filter(i => i.sectionId === s.id)]).filter(([, its]) => its.length);
+  const list = [...items].sort((a, b) => a.createdAt - b.createdAt);
   const row = it => {
     const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob);
     const text = [it.caption, it.measure].filter(Boolean).join('\n');
@@ -704,9 +702,7 @@ function simpleReportBody(r, items) {
       </a><button class="kebab" data-imenu="${it.id}" aria-label="Opciones">⋮</button></li>`;
   };
   return `
-    ${groups.length ? groups.map(([s, its]) => `
-      ${multi ? `<h3 class="area-head">${esc(s.title)} <small>(${its.length})</small></h3>` : ''}
-      <ul class="ilist">${its.map(row).join('')}</ul>`).join('')
+    ${list.length ? `<ul class="ilist">${list.map(row).join('')}</ul>`
     : '<div class="empty"><p>Todavía no hay fotos ni videos.</p><p>Pulsa <b>+</b> para agregar fotos o videos.</p></div>'}
     <button class="fab" id="newItem" aria-label="Agregar foto o video">+</button>`;
 }
@@ -718,7 +714,6 @@ function newItemSheet(r) {
     d.className = 'sheet';
     const area = currentArea[r.id];
     d.innerHTML = `<form method="dialog"><h2>Agregar</h2>
-      <label>Área<select name="area"><option value="__new">➕ Crear área…</option>${r.sections.map(s => `<option value="${s.id}" ${s.id === area ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}</select></label>
       <label>Descripción<textarea name="caption" class="autogrow" rows="1" placeholder="Ej. Oficina"></textarea></label>
       <label>Medida <small>(una por línea)</small><textarea name="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36"></textarea></label>
       <div class="cap-btns">
@@ -731,26 +726,15 @@ function newItemSheet(r) {
     </form>`;
     document.body.appendChild(d);
     d.querySelectorAll('textarea.autogrow').forEach(el => el.addEventListener('input', () => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; }));
-    const sel = d.querySelector('[name=area]');
-    sel.onchange = async () => {
-      if (sel.value !== '__new') return;
-      const t = (prompt('Nombre del área (ej. Habitación 2, Balcón):') || '').trim();
-      if (!t) { sel.value = currentArea[r.id]; return; }
-      const s = { id: DB.uid(), title: t, text: '' };
-      r.sections.push(s);
-      await DB.put('reports', r);
-      sel.querySelector('option[value="__new"]').insertAdjacentHTML('afterend', `<option value="${s.id}">${esc(t)}</option>`);
-      sel.value = s.id;
-    };
     let result = null;
     d.querySelector('.cap-btns').addEventListener('click', e => {
-      const b = e.target.closest('button[data-a]'); if (!b || sel.value === '__new') return;
+      const b = e.target.closest('button[data-a]'); if (!b) return;
       const action = b.dataset.a;
       // El selector de archivos se abre aquí mismo, dentro del toque, para que iPhone lo permita.
       const files = action === 'photo' ? pickFiles('image/*', { capture: true })
         : action === 'video' ? pickFiles('video/*', { capture: true })
         : action === 'gallery' ? pickFiles('image/*,video/*', { multiple: true }) : null;
-      result = { action, files, sectionId: sel.value, caption: d.querySelector('[name=caption]').value.trim(), measure: d.querySelector('[name=measure]').value.trim() };
+      result = { action, files, sectionId: area, caption: d.querySelector('[name=caption]').value.trim(), measure: d.querySelector('[name=measure]').value.trim() };
       d.close();
     });
     d.addEventListener('close', () => { d.remove(); resolve(result); });
@@ -771,7 +755,7 @@ function bindSimpleReport(r, items) {
   };
   view.querySelectorAll('[data-imenu]').forEach(b => b.onclick = async () => {
     const it = items.find(x => x.id === b.dataset.imenu);
-    const opts = [['open', 'Abrir'], ...(r.sections.length > 1 ? [['area', 'Cambiar de área']] : []), ['del', '🗑 Eliminar', 'danger']];
+    const opts = [['open', 'Abrir'], ['del', '🗑 Eliminar', 'danger']];
     const a = await actionSheet(it.type === 'video' ? 'Video' : 'Foto', opts);
     if (a === 'open') location.hash = `#/i/${it.id}`;
     if (a === 'area') {
@@ -802,7 +786,7 @@ async function viewItem(id) {
     <section class="card">
       <label>Descripción<textarea id="caption" class="autogrow" rows="1" placeholder="Ej. Oficina">${esc(it.caption)}</textarea></label>
       <label>Medidas <small>(una por línea)</small><textarea id="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36">${esc(it.measure)}</textarea></label>
-      <label>Sección<select id="section">${r.sections.map(s => `<option value="${s.id}" ${s.id === it.sectionId ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}</select></label>
+      <label ${r.sections.length > 1 ? '' : 'hidden'}>Sección<select id="section">${r.sections.map(s => `<option value="${s.id}" ${s.id === it.sectionId ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}</select></label>
       <div class="row wrap">
         <button id="up">↑ Mover antes</button><button id="down">↓ Mover después</button>
         ${it.type === 'photo' ? `<button id="cover">${r.coverItemId === it.id ? '★ Es portada' : '☆ Usar en portada'}</button>` : ''}
