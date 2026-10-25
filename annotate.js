@@ -2,9 +2,9 @@
 // Las figuras se guardan como vectores para poder volver a editarlas.
 const Annotator = (() => {
   const COLORS = ['#e53935', '#fdd835', '#43a047', '#1e88e5', '#ffffff', '#000000'];
-  const TOOLS = [
-    ['arrow', ic('arrow', 45), 'Flecha'], ['measure', '↔', 'Medida'], ['circle', '◯', 'Círculo'],
-    ['rect', '▭', 'Rectángulo'], ['text', 'T', 'Texto'], ['pen', ic('pencil'), 'Libre'],
+  const TOOLS = () => [
+    ['arrow', ic('arrow', 45), tr('Flecha')], ['measure', '↔', tr('Medida')], ['circle', '◯', tr('Círculo')],
+    ['rect', '▭', tr('Rectángulo')], ['text', 'T', tr('Texto')], ['pen', ic('pencil'), tr('Libre')],
   ];
 
   function drawShape(ctx, s, scale) {
@@ -87,20 +87,20 @@ const Annotator = (() => {
       wrap.className = 'annot';
       wrap.innerHTML = `
         <div class="annot-bar">
-          <button data-act="cancel">Cancelar</button>
+          <button data-act="cancel">${tr('Cancelar')}</button>
           <span class="spacer"></span>
-          <button data-act="undo" title="Deshacer">${ic('undo')}</button>
-          <button data-act="clear" title="Borrar todo">${ic('trash')}</button>
-          <button data-act="save" class="primary">Guardar</button>
+          <button data-act="undo" title="${tr('Deshacer')}">${ic('undo')}</button>
+          <button data-act="clear" title="${tr('Borrar todo')}">${ic('trash')}</button>
+          <button data-act="save" class="primary">${tr('Guardar')}</button>
         </div>
         <div class="annot-stage"><canvas></canvas></div>
         <div class="annot-tools">
-          ${TOOLS.map(([k, ic, t]) => `<button data-tool="${k}" title="${t}"><b>${ic}</b><small>${t}</small></button>`).join('')}
+          ${TOOLS().map(([k, ic, t]) => `<button data-tool="${k}" title="${t}"><b>${ic}</b><small>${t}</small></button>`).join('')}
         </div>
         <div class="annot-colors">
           ${COLORS.map(c => `<button data-color="${c}" style="background:${c}" aria-label="color ${c}"></button>`).join('')}
-          <select data-act="width" aria-label="Grosor">
-            <option value="2">Fino</option><option value="4" selected>Medio</option><option value="7">Grueso</option>
+          <select data-act="width" aria-label="${tr('Grosor')}">
+            <option value="2">${tr('Fino')}</option><option value="4" selected>${tr('Medio')}</option><option value="7">${tr('Grueso')}</option>
           </select>
         </div>`;
       document.body.appendChild(wrap);
@@ -129,7 +129,7 @@ const Annotator = (() => {
         e.preventDefault();
         const [x, y] = pos(e);
         if (tool === 'text') {
-          const t = prompt('Texto:');
+          const t = prompt(tr('Texto') + ':');
           if (t) { shapes.push({ type: 'text', color, width, p: [x, y], text: t }); redraw(); }
           return;
         }
@@ -147,7 +147,7 @@ const Annotator = (() => {
         const s = current; current = null;
         const tiny = s.p && Math.hypot(s.p[2] - s.p[0], s.p[3] - s.p[1]) < 5;
         if (!tiny) {
-          if (s.type === 'measure') s.text = prompt('Medida (ej. 2.35 m):', '') || '';
+          if (s.type === 'measure') s.text = prompt(tr('Medida (ej. 2.35 m):'), '') || '';
           shapes.push(s);
         }
         redraw();
@@ -167,7 +167,7 @@ const Annotator = (() => {
         if (b.dataset.color) color = b.dataset.color;
         const act = b.dataset.act;
         if (act === 'undo') shapes.pop();
-        if (act === 'clear' && confirm('¿Borrar todas las anotaciones?')) shapes.length = 0;
+        if (act === 'clear' && confirm(tr('¿Borrar todas las anotaciones?'))) shapes.length = 0;
         if (act === 'cancel') return close(null);
         if (act === 'save') {
           current = null; redraw();

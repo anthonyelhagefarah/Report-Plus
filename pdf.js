@@ -27,7 +27,7 @@ const Exporter = (() => {
   // Nombre del video: "Cliente - Descripción.mp4" (con número si hay varios).
   const clean = t => (t || '').replace(/[\\/:*?"<>|\n]+/g, ' ').replace(/\s+/g, ' ').trim();
   function videoName(item, n, clientName, total) {
-    const base = [clean(clientName), clean(item.caption)].filter(Boolean).join(' - ') || 'Video';
+    const base = [clean(clientName), clean(item.caption)].filter(Boolean).join(' - ') || tr('Video');
     return `${base}${total > 1 ? ` (${n})` : ''}.${ext(item.blob, 'mp4')}`;
   }
 
@@ -60,19 +60,20 @@ const Exporter = (() => {
         doc.addImage(lg.data, 'JPEG', (W - w) / 2, y, w, h); y += h + 10;
       }
       doc.setFont('helvetica', 'bold'); doc.setFontSize(24); doc.setTextColor(20);
-      doc.text(doc.splitTextToSize(report.title || 'Reporte', W - 2 * M), W / 2, y + 8, { align: 'center' }); y += 22;
+      doc.text(doc.splitTextToSize(report.title || tr('Reporte'), W - 2 * M), W / 2, y + 8, { align: 'center' }); y += 22;
       doc.setFontSize(14); doc.setFont('helvetica', 'normal'); doc.setTextColor(70);
       const lines = [
-        client.name && `Cliente: ${client.name}`,
-        (report.location || client.address) && `Ubicación: ${report.location || client.address}`,
-        client.residential && `Residencial: ${client.residential}`,
-        `Fecha: ${new Date(report.date || Date.now()).toLocaleDateString('es')}`,
+        client.name && `${tr('Cliente')}: ${client.name}`,
+        (report.location || client.address) && `${tr('Ubicación')}: ${report.location || client.address}`,
+        client.residential && `${tr('Residencial')}: ${client.residential}`,
+        `${tr('Fecha')}: ${new Date(report.date || Date.now()).toLocaleDateString(I18N.lang)}`,
       ].filter(Boolean);
       lines.forEach(l => { doc.text(l, W / 2, y, { align: 'center' }); y += 8; });
       const geo = report.geo || client.geo;
       if (geo) {
         doc.setFontSize(10); doc.setTextColor(...accent);
-        doc.textWithLink(`GPS: ${geo.lat}, ${geo.lng} (ver en mapa)`, W / 2 - doc.getTextWidth(`GPS: ${geo.lat}, ${geo.lng} (ver en mapa)`) / 2, y, { url: `https://www.google.com/maps?q=${geo.lat},${geo.lng}` });
+        const gps = `GPS: ${geo.lat}, ${geo.lng} (${tr('ver en mapa')})`;
+        doc.textWithLink(gps, W / 2 - doc.getTextWidth(gps) / 2, y, { url: `https://www.google.com/maps?q=${geo.lat},${geo.lng}` });
         y += 7; doc.setFontSize(14); doc.setTextColor(70);
       }
       // Foto de portada solo si el usuario la eligió.
@@ -88,7 +89,7 @@ const Exporter = (() => {
       if (report.notes) {
         doc.addPage(); header();
         doc.setFontSize(13); doc.setFont('helvetica', 'bold'); doc.setTextColor(20);
-        doc.text('Observaciones', M, 24);
+        doc.text(tr('Observaciones'), M, 24);
         doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(50);
         doc.text(doc.splitTextToSize(report.notes, W - 2 * M), M, 32);
       }
@@ -109,8 +110,8 @@ const Exporter = (() => {
       if (withCaption) out.push({ bold: true, size: 12, lines: doc.splitTextToSize(`${num}. ${(it.caption || '').replace(/\n+/g, ' ')}`.trim(), width) });
       const measures = (it.measure || '').split('\n').map(m => m.trim()).filter(Boolean);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
-      if (measures.length) out.push({ bold: false, size: 11, lines: doc.splitTextToSize(`Nota / Medida: ${measures[0]}`, width).concat(...measures.slice(1).map(m => doc.splitTextToSize(m, width))) });
-      if (it.type === 'video') out.push({ italic: true, size: 9, lines: doc.splitTextToSize(`Video ${fmtDur(it.duration)} · se envía aparte por WhatsApp: "${videoFiles.get(it.id)}"`, width) });
+      if (measures.length) out.push({ bold: false, size: 11, lines: doc.splitTextToSize(`${tr('Nota / Medida')}: ${measures[0]}`, width).concat(...measures.slice(1).map(m => doc.splitTextToSize(m, width))) });
+      if (it.type === 'video') out.push({ italic: true, size: 9, lines: doc.splitTextToSize(`${tr('Video')} ${fmtDur(it.duration)} · ${tr('se envía aparte por WhatsApp:')} "${videoFiles.get(it.id)}"`, width) });
       return out;
     };
     const lineH = size => size * 0.42;
@@ -135,7 +136,7 @@ const Exporter = (() => {
         doc.triangle(cx - r * 0.35, cy - r * 0.5, cx - r * 0.35, cy + r * 0.5, cx + r * 0.55, cy, 'F');
         doc.setFillColor(220, 40, 40); doc.rect(ix, iy, 24, 6.5, 'F');
         doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(255);
-        doc.text(`VIDEO ${fmtDur(it.duration)}`, ix + 12, iy + 4.5, { align: 'center' });
+        doc.text(`${tr('VIDEO')} ${fmtDur(it.duration)}`, ix + 12, iy + 4.5, { align: 'center' });
       }
       return ih;
     };
@@ -160,7 +161,7 @@ const Exporter = (() => {
       const title = cont => {
         newPage();
         doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(...accent);
-        doc.text(`${num}. ${b.items[0].caption || 'Ráfaga'}${cont ? ' (cont.)' : ''}`, M, top + 5);
+        doc.text(`${num}. ${b.items[0].caption || tr('Ráfaga')}${cont ? ` (${tr('cont.')})` : ''}`, M, top + 5);
         return top + 10;
       };
       let y = title(false);
@@ -185,8 +186,8 @@ const Exporter = (() => {
     for (let i = 1; i <= n; i++) {
       doc.setPage(i);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(140);
-      doc.text(`Página ${i} de ${n}`, W - M, H - 5, { align: 'right' });
-      doc.text('Generado con Report Plus', M, H - 5);
+      doc.text(tr('Página {i} de {n}', { i, n }), W - M, H - 5, { align: 'right' });
+      doc.text(tr('Generado con Report Plus'), M, H - 5);
     }
     return { pdf: doc.output('blob'), videoFiles };
   }
@@ -194,11 +195,11 @@ const Exporter = (() => {
   async function buildZip(data) {
     const { pdf, videoFiles } = await buildPdf(data);
     const zip = new JSZip();
-    const base = slug(data.report.title) || 'reporte';
+    const base = slug(data.report.title) || tr('reporte');
     zip.file(`${base}.pdf`, pdf);
     data.items.forEach((it, i) => {
       if (it.type === 'video') zip.file('videos/' + videoFiles.get(it.id), it.blob);
-      else zip.file(`fotos/${String(i + 1).padStart(2, '0')}.${ext(it.blob, 'jpg')}`, it.annotated || it.blob);
+      else zip.file(`${tr('fotos')}/${String(i + 1).padStart(2, '0')}.${ext(it.blob, 'jpg')}`, it.annotated || it.blob);
     });
     return zip.generateAsync({ type: 'blob' });
   }

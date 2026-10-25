@@ -4,7 +4,7 @@ const view = $('#view');
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const urls = [];
 const objUrl = blob => { const u = URL.createObjectURL(blob); urls.push(u); return u; };
-const fmtDate = t => new Date(t).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
+const fmtDate = t => new Date(t).toLocaleDateString(I18N.lang, { day: '2-digit', month: 'short', year: 'numeric' });
 const fmtDur = s => s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : '';
 
 const SECTION_TEMPLATES = {
@@ -32,7 +32,7 @@ function setHeader(title, back) {
 }
 
 // Formulario modal genérico. fields: [{name,label,type,value,options}]
-function form(title, fields, okText = 'Guardar') {
+function form(title, fields, okText = tr('Guardar')) {
   return new Promise(resolve => {
     const d = document.createElement('dialog');
     d.className = 'sheet';
@@ -43,7 +43,7 @@ function form(title, fields, okText = 'Guardar') {
         : f.type === 'checkbox' ? `<input type="checkbox" name="${f.name}" ${f.value ? 'checked' : ''}>`
         : `<input name="${f.name}" type="${f.type || 'text'}" value="${esc(f.value)}" ${f.required ? 'required' : ''}>`}
       </label>`).join('')}
-      <div class="row end"><button value="cancel" formnovalidate>Cancelar</button><button value="ok" class="primary">${esc(okText)}</button></div>
+      <div class="row end"><button value="cancel" formnovalidate>${tr('Cancelar')}</button><button value="ok" class="primary">${esc(okText)}</button></div>
     </form>`;
     document.body.appendChild(d);
     d.addEventListener('close', () => {
@@ -103,27 +103,27 @@ async function addMedia(report, sectionId, files, extra = {}) {
     await DB.put('items', item);
     ids.push(item.id);
   }
-  toast(`${files.length} elemento(s) agregado(s)`);
+  toast(tr('{n} elemento(s) agregado(s)', { n: files.length }));
   return ids;
 }
 
 // Ubicación GPS actual + dirección aproximada (OpenStreetMap).
 function getLocation() {
   return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error('Este teléfono no permite obtener la ubicación'));
+    if (!navigator.geolocation) return reject(new Error(tr('Este teléfono no permite obtener la ubicación')));
     // Solo coordenadas: la dirección y el residencial los escribe el usuario.
     navigator.geolocation.getCurrentPosition(pos => {
       const { latitude: lat, longitude: lng, accuracy } = pos.coords;
       resolve({ lat: +lat.toFixed(6), lng: +lng.toFixed(6), accuracy: Math.round(accuracy), at: Date.now() });
-    }, err => reject(new Error(err.code === 1 ? 'Permiso de ubicación denegado. Actívalo en los ajustes del navegador.' : 'No se pudo obtener la ubicación')), { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
+    }, err => reject(new Error(tr(err.code === 1 ? 'Permiso de ubicación denegado. Actívalo en los ajustes del navegador.' : 'No se pudo obtener la ubicación'))), { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
   });
 }
-const mapEmbed = g => { const k = 0.0025; return `<iframe class="map" loading="lazy" title="Mapa" src="https://www.openstreetmap.org/export/embed.html?bbox=${g.lng - k},${g.lat - k},${g.lng + k},${g.lat + k}&layer=mapnik&marker=${g.lat},${g.lng}"></iframe>`; };
+const mapEmbed = g => { const k = 0.0025; return `<iframe class="map" loading="lazy" title="${tr('Mapa')}" src="https://www.openstreetmap.org/export/embed.html?bbox=${g.lng - k},${g.lat - k},${g.lng + k},${g.lat + k}&layer=mapnik&marker=${g.lat},${g.lng}"></iframe>`; };
 const mapUrl = g => `https://www.google.com/maps?q=${g.lat},${g.lng}`;
-const geoLine = g => g ? `<div>${ic('satellite')} <a href="${mapUrl(g)}" target="_blank" rel="noopener">${g.lat}, ${g.lng}</a> <small class="muted">(±${g.accuracy} m · ver en mapa)</small></div>` : '';
+const geoLine = g => g ? `<div>${ic('satellite')} <a href="${mapUrl(g)}" target="_blank" rel="noopener">${g.lat}, ${g.lng}</a> <small class="muted">(±${g.accuracy} m · ${tr('ver en mapa')})</small></div>` : '';
 
 async function withLocation(btn) {
-  const t = btn.innerHTML; btn.disabled = true; btn.textContent = 'Buscando ubicación…';
+  const t = btn.innerHTML; btn.disabled = true; btn.textContent = tr('Buscando ubicación…');
   try { return await getLocation(); } catch (e) { toast(e.message, 5000); return null; } finally { btn.disabled = false; btn.innerHTML = t; }
 }
 
@@ -132,10 +132,10 @@ function sendVideosStep(videos, title) {
   return new Promise(resolve => {
     const d = document.createElement('dialog');
     d.className = 'sheet actions';
-    d.innerHTML = `<form method="dialog"><h2>Ahora envía ${videos.length === 1 ? 'el video' : `los ${videos.length} videos`}</h2>
+    d.innerHTML = `<form method="dialog"><h2>${videos.length === 1 ? tr('Ahora envía el video') : tr('Ahora envía los {n} videos', { n: videos.length })}</h2>
       <p class="muted small">${videos.map(v => esc(v.name)).join('<br>')}</p>
-      <button type="button" class="wide primary" id="sv">${ic('video')} Enviar ${videos.length === 1 ? 'video' : 'videos'}</button>
-      <button value="" class="wide ghost">Ahora no</button></form>`;
+      <button type="button" class="wide primary" id="sv">${ic('video')} ${tr(videos.length === 1 ? 'Enviar video' : 'Enviar videos')}</button>
+      <button value="" class="wide ghost">${tr('Ahora no')}</button></form>`;
     document.body.appendChild(d);
     $('#sv', d).onclick = async () => {
       if (navigator.canShare && navigator.canShare({ files: videos })) {
@@ -169,11 +169,11 @@ function openCamera(onCapture) {
     const ov = document.createElement('div');
     ov.className = 'camera';
     ov.innerHTML = `<video playsinline muted autoplay></video>
-      <div class="cam-top"><button data-a="close">Listo</button><span class="cam-count">0</span><button data-a="flip">⟲</button></div>
+      <div class="cam-top"><button data-a="close">${tr('Listo')}</button><span class="cam-count">0</span><button data-a="flip">⟲</button></div>
       <div class="cam-rec" hidden>● <span>0:00</span></div>
       <div class="cam-bottom">
-        <div class="cam-modes"><button data-m="photo" class="on">FOTO</button><button data-m="video">VIDEO</button></div>
-        <button class="shutter" data-a="shoot" aria-label="Capturar"></button>
+        <div class="cam-modes"><button data-m="photo" class="on">${tr('FOTO')}</button><button data-m="video">${tr('VIDEO')}</button></div>
+        <button class="shutter" data-a="shoot" aria-label="${tr('Capturar')}"></button>
       </div>`;
     document.body.appendChild(ov); document.body.classList.add('noscroll');
     const video = $('video', ov);
@@ -185,7 +185,7 @@ function openCamera(onCapture) {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: mode === 'video' });
         video.srcObject = stream;
       } catch (e) {
-        toast('No se pudo abrir la cámara. Usa los botones Foto/Video del sistema.', 4000);
+        toast(tr('No se pudo abrir la cámara. Usa los botones Foto/Video del sistema.'), 4000);
         close();
       }
     }
@@ -246,7 +246,7 @@ function openViewer(blob) {
   const ov = document.createElement('div');
   ov.className = 'viewer';
   const url = URL.createObjectURL(blob);
-  ov.innerHTML = `<img src="${url}" alt="" draggable="false"><button class="viewer-close" aria-label="Cerrar">${ic('xcircle')}</button><div class="viewer-hint">Pellizca para ampliar · doble toque para acercar</div>`;
+  ov.innerHTML = `<img src="${url}" alt="" draggable="false"><button class="viewer-close" aria-label="${tr('Cerrar')}">${ic('xcircle')}</button><div class="viewer-hint">${tr('Pellizca para ampliar · doble toque para acercar')}</div>`;
   document.body.appendChild(ov); document.body.classList.add('noscroll');
   const img = $('img', ov);
   let scale = 1, tx = 0, ty = 0, lastTap = 0;
@@ -323,21 +323,21 @@ function quickCreateForm() {
   return new Promise(resolve => {
     const d = document.createElement('dialog');
     d.className = 'sheet';
-    d.innerHTML = `<form method="dialog"><h2>Nuevo cliente</h2>
-      <label>Nombre del cliente<input name="name" required></label>
-      <label>Dirección<input name="address"></label>
-      <label>Nombre del residencial<input name="residential"></label>
-      <label>Ubicación en el mapa</label>
-      <button type="button" id="qgps" class="wide">${ic('pin')} Guardar mi ubicación actual</button>
+    d.innerHTML = `<form method="dialog"><h2>${tr('Nuevo cliente')}</h2>
+      <label>${tr('Nombre del cliente')}<input name="name" required></label>
+      <label>${tr('Dirección')}<input name="address"></label>
+      <label>${tr('Nombre del residencial')}<input name="residential"></label>
+      <label>${tr('Ubicación en el mapa')}</label>
+      <button type="button" id="qgps" class="wide">${ic('pin')} ${tr('Guardar mi ubicación actual')}</button>
       <div id="qgeo" class="muted small"></div>
       <div id="qmap"></div>
-      <label>Foto de portada <small>(opcional)</small></label>
-      <div class="row cover-pick"><button type="button" data-cv="take">${ic('camera')} Tomar foto</button><button type="button" data-cv="pick">${ic('gallery')} Galería</button></div>
+      <label>${tr('Foto de portada')} <small>(${tr('opcional')})</small></label>
+      <div class="row cover-pick"><button type="button" data-cv="take">${ic('camera')} ${tr('Tomar foto')}</button><button type="button" data-cv="pick">${ic('gallery')} ${tr('Galería')}</button></div>
       <div id="qcover"></div>
-      <label>Teléfono<input name="phone" type="tel"></label>
-      <label>Correo<input name="email" type="email"></label>
-      <label>Notas<textarea name="notes" rows="2"></textarea></label>
-      <div class="row end"><button value="cancel" formnovalidate>Cancelar</button><button value="ok" class="primary">Crear</button></div>
+      <label>${tr('Teléfono')}<input name="phone" type="tel"></label>
+      <label>${tr('Correo')}<input name="email" type="email"></label>
+      <label>${tr('Notas')}<textarea name="notes" rows="2"></textarea></label>
+      <div class="row end"><button value="cancel" formnovalidate>${tr('Cancelar')}</button><button value="ok" class="primary">${tr('Crear')}</button></div>
     </form>`;
     document.body.appendChild(d);
     let geo = null, cover = null;
@@ -345,13 +345,13 @@ function quickCreateForm() {
       const [f] = await pickFiles('image/*', { capture: b.dataset.cv === 'take' });
       if (!f) return;
       cover = f;
-      $('#qcover', d).innerHTML = `<div class="cover-prev"><img src="${URL.createObjectURL(f)}" alt=""><button type="button" class="kebab" id="qcoverdel" aria-label="Quitar">${ic('xcircle')}</button></div>`;
+      $('#qcover', d).innerHTML = `<div class="cover-prev"><img src="${URL.createObjectURL(f)}" alt=""><button type="button" class="kebab" id="qcoverdel" aria-label="${tr('Quitar')}">${ic('xcircle')}</button></div>`;
       $('#qcoverdel', d).onclick = () => { cover = null; $('#qcover', d).innerHTML = ''; };
     });
     $('#qgps', d).onclick = async e => {
       const g = await withLocation(e.currentTarget); if (!g) return;
       geo = g;
-      $('#qgeo', d).innerHTML = `${ic('satellite')} GPS guardado: ${g.lat}, ${g.lng} (±${g.accuracy} m) · <a href="${mapUrl(g)}" target="_blank" rel="noopener">Abrir en Google Maps</a>`;
+      $('#qgeo', d).innerHTML = `${ic('satellite')} ${tr('GPS guardado:')} ${g.lat}, ${g.lng} (±${g.accuracy} m) · <a href="${mapUrl(g)}" target="_blank" rel="noopener">${tr('Abrir en Google Maps')}</a>`;
       $('#qmap', d).innerHTML = mapEmbed(g);
     };
     d.addEventListener('close', () => {
@@ -372,7 +372,7 @@ function actionSheet(title, options) {
     d.className = 'sheet actions';
     d.innerHTML = `<form method="dialog">${title ? `<h2>${esc(title)}</h2>` : ''}
       ${options.map(([k, t, cls, icon]) => `<button value="${esc(k)}" class="wide ${cls || ''}">${icon ? ic(icon) + ' ' : ''}${esc(t)}</button>`).join('')}
-      <button value="" class="wide ghost">Cancelar</button></form>`;
+      <button value="" class="wide ghost">${tr('Cancelar')}</button></form>`;
     document.body.appendChild(d);
     d.addEventListener('close', () => { const v = d.returnValue; d.remove(); resolve(v || null); });
     d.addEventListener('click', e => { if (e.target === d) d.close(); });
@@ -381,7 +381,7 @@ function actionSheet(title, options) {
 }
 const getFolders = async () => (await DB.get('settings', 'folders')) || [];
 const saveFolders = f => DB.put('settings', f, 'folders');
-const fmtWhen = t => new Date(t).toLocaleString('es', { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const fmtWhen = t => new Date(t).toLocaleString(I18N.lang, { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 async function viewHome(folderId) {
   const folders = await getFolders();
@@ -398,19 +398,19 @@ async function viewHome(folderId) {
   const reports = all.filter(r => folder ? r.folderId === folder.id : !r.folderId);
   const reportRow = (r, hidden) => {
     const l = label(r);
-    return `<li data-name="${esc(l.search)}" data-report="${r.id}" ${hidden ? 'hidden' : ''}><a href="#/r/${r.id}"><span class="ico">${ic('report')}</span><div class="grow"><b>${esc(l.text)}</b></div></a><button class="kebab" data-menu="${r.id}" aria-label="Opciones">⋮</button></li>`;
+    return `<li data-name="${esc(l.search)}" data-report="${r.id}" ${hidden ? 'hidden' : ''}><a href="#/r/${r.id}"><span class="ico">${ic('report')}</span><div class="grow"><b>${esc(l.text)}</b></div></a><button class="kebab" data-menu="${r.id}" aria-label="${tr('Opciones')}">⋮</button></li>`;
   };
   view.innerHTML = `
     ${folder ? '' : modeSwitch()}
-    <div class="toolbar"><input type="search" id="q" placeholder="Buscar cliente o dirección…"></div>
+    <div class="toolbar"><input type="search" id="q" placeholder="${tr('Buscar cliente o dirección…')}"></div>
     <ul class="list" id="list">
-      ${folder ? '' : folders.map(f => `<li data-name="${esc(f.name.toLowerCase())}" data-folder-row><a href="#/f/${f.id}"><span class="ico">${ic('folder')}</span><div class="grow"><b>${esc(f.name)}</b> <small class="inline-count">${all.filter(r => r.folderId === f.id).length}</small></div></a><button class="kebab" data-fmenu="${f.id}" aria-label="Opciones">⋮</button></li>`).join('')}
+      ${folder ? '' : folders.map(f => `<li data-name="${esc(f.name.toLowerCase())}" data-folder-row><a href="#/f/${f.id}"><span class="ico">${ic('folder')}</span><div class="grow"><b>${esc(f.name)}</b> <small class="inline-count">${all.filter(r => r.folderId === f.id).length}</small></div></a><button class="kebab" data-fmenu="${f.id}" aria-label="${tr('Opciones')}">⋮</button></li>`).join('')}
       ${reports.map(r => reportRow(r)).join('')}
       ${folder ? '' : all.filter(r => r.folderId).map(r => reportRow(r, true).replace('<li ', '<li data-infolder ')).join('')}
     </ul>
-    ${reports.length || (!folder && folders.length) ? '' : `<div class="empty"><p>${folder ? 'Carpeta vacía.' : 'Aún no tienes clientes.'}</p><p>Pulsa <b>+</b> para crear uno y empezar a tomar fotos.</p></div>`}
-    ${folder ? '' : `<button class="ghost wide" id="newfolder">${ic('folder')} Nueva carpeta</button>`}
-    <button class="fab" id="add" aria-label="Crear cliente">${ic('plus')}</button>`;
+    ${reports.length || (!folder && folders.length) ? '' : `<div class="empty"><p>${tr(folder ? 'Carpeta vacía.' : 'Aún no tienes clientes.')}</p><p>${tr('Pulsa <b>+</b> para crear uno y empezar a tomar fotos.')}</p></div>`}
+    ${folder ? '' : `<button class="ghost wide" id="newfolder">${ic('folder')} ${tr('Nueva carpeta')}</button>`}
+    <button class="fab" id="add" aria-label="${tr('Crear cliente')}">${ic('plus')}</button>`;
   if (!folder) bindModeSwitch();
   $('#q').oninput = e => {
     const q = e.target.value.trim().toLowerCase();
@@ -431,33 +431,33 @@ async function viewHome(folderId) {
   };
   $('#add').onclick = createReport;
   if ($('#newfolder')) $('#newfolder').onclick = async () => {
-    const v = await form('Nueva carpeta', [{ name: 'name', label: 'Nombre', value: '', required: true }], 'Crear');
+    const v = await form(tr('Nueva carpeta'), [{ name: 'name', label: tr('Nombre'), value: '', required: true }], tr('Crear'));
     if (!v || !v.name) return;
     folders.push({ id: DB.uid(), name: v.name }); await saveFolders(folders); route();
   };
   view.querySelectorAll('[data-menu]').forEach(b => b.onclick = async () => {
     const r = all.find(x => x.id === b.dataset.menu);
-    const opts = [['open', 'Abrir']];
-    if (folders.length) opts.push(['move', 'Mover a carpeta', '', 'folder']);
-    if (r.folderId) opts.push(['out', 'Sacar de la carpeta']);
-    opts.push(['del', 'Eliminar reporte', 'danger', 'trash']);
+    const opts = [['open', tr('Abrir')]];
+    if (folders.length) opts.push(['move', tr('Mover a carpeta'), '', 'folder']);
+    if (r.folderId) opts.push(['out', tr('Sacar de la carpeta')]);
+    opts.push(['del', tr('Eliminar reporte'), 'danger', 'trash']);
     const a = await actionSheet(label(r).text, opts);
     if (a === 'open') location.hash = `#/r/${r.id}`;
     if (a === 'move') {
-      const v = await form('Mover a carpeta', [{ name: 'f', label: 'Carpeta', type: 'select', value: r.folderId || folders[0].id, options: folders.map(f => [f.id, f.name]) }], 'Mover');
+      const v = await form(tr('Mover a carpeta'), [{ name: 'f', label: tr('Carpeta'), type: 'select', value: r.folderId || folders[0].id, options: folders.map(f => [f.id, f.name]) }], tr('Mover'));
       if (v) { r.folderId = v.f; await DB.put('reports', r); route(); }
     }
     if (a === 'out') { delete r.folderId; await DB.put('reports', r); route(); }
-    if (a === 'del' && confirm('¿Eliminar este reporte con todas sus fotos y videos?')) { await DB.deleteReport(r.id); route(); }
+    if (a === 'del' && confirm(tr('¿Eliminar este reporte con todas sus fotos y videos?'))) { await DB.deleteReport(r.id); route(); }
   });
   view.querySelectorAll('[data-fmenu]').forEach(b => b.onclick = async () => {
     const f = folders.find(x => x.id === b.dataset.fmenu);
-    const a = await actionSheet(f.name, [['rename', 'Cambiar nombre'], ['del', 'Eliminar carpeta (los reportes se conservan)', 'danger', 'trash']]);
+    const a = await actionSheet(f.name, [['rename', tr('Cambiar nombre')], ['del', tr('Eliminar carpeta (los reportes se conservan)'), 'danger', 'trash']]);
     if (a === 'rename') {
-      const v = await form('Cambiar nombre', [{ name: 'name', label: 'Nombre', value: f.name, required: true }]);
+      const v = await form(tr('Cambiar nombre'), [{ name: 'name', label: tr('Nombre'), value: f.name, required: true }]);
       if (v && v.name) { f.name = v.name; await saveFolders(folders); route(); }
     }
-    if (a === 'del' && confirm(`¿Eliminar la carpeta "${f.name}"? Los reportes quedan en el inicio.`)) {
+    if (a === 'del' && confirm(tr('¿Eliminar la carpeta "{name}"? Los reportes quedan en el inicio.', { name: f.name }))) {
       for (const r of all.filter(x => x.folderId === f.id)) { delete r.folderId; await DB.put('reports', r); }
       await saveFolders(folders.filter(x => x !== f)); route();
     }
@@ -465,26 +465,26 @@ async function viewHome(folderId) {
 }
 
 async function viewClients() {
-  setHeader('Clientes');
+  setHeader(tr('Clientes'));
   const clients = (await DB.all('clients')).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const reports = await DB.all('reports');
   view.innerHTML = `
     ${modeSwitch()}
-    <div class="toolbar"><input type="search" id="q" placeholder="Buscar cliente…"><button class="primary" id="add">+ Cliente</button></div>
+    <div class="toolbar"><input type="search" id="q" placeholder="${tr('Buscar cliente…')}"><button class="primary" id="add">+ ${tr('Cliente')}</button></div>
     <ul class="list" id="list">
       ${clients.map(c => `<li data-name="${esc(c.name.toLowerCase())}"><a href="#/c/${c.id}">
         <div class="avatar">${esc(c.name.slice(0, 1).toUpperCase())}</div>
         <div class="grow"><b>${esc(c.name)}</b><small>${esc([c.address, c.residential].filter(Boolean).join(' · ') || c.phone || '')}</small></div>
         <span class="badge">${reports.filter(r => r.clientId === c.id).length}</span></a></li>`).join('')}
     </ul>
-    ${clients.length ? '' : `<div class="empty"><p>Aún no tienes clientes.</p><p>Crea uno para empezar tu primer reporte con fotos y videos.</p></div>`}`;
+    ${clients.length ? '' : `<div class="empty"><p>${tr('Aún no tienes clientes.')}</p><p>${tr('Crea uno para empezar tu primer reporte con fotos y videos.')}</p></div>`}`;
   bindModeSwitch();
   $('#q').oninput = e => {
     const q = e.target.value.toLowerCase();
     view.querySelectorAll('#list li').forEach(li => { li.hidden = !li.dataset.name.includes(q); });
   };
   $('#add').onclick = async () => {
-    const v = await form('Nuevo cliente', clientFields({}));
+    const v = await form(tr('Nuevo cliente'), clientFields({}));
     if (!v || !v.name) return;
     const c = { id: DB.uid(), ...v, createdAt: Date.now(), updatedAt: Date.now() };
     await DB.put('clients', c);
@@ -493,12 +493,12 @@ async function viewClients() {
 }
 
 const clientFields = c => [
-  { name: 'name', label: 'Nombre', value: c.name, required: true },
-  { name: 'address', label: 'Dirección', value: c.address },
-  { name: 'residential', label: 'Nombre del residencial', value: c.residential },
-  { name: 'phone', label: 'Teléfono', value: c.phone, type: 'tel' },
-  { name: 'email', label: 'Correo', value: c.email, type: 'email' },
-  { name: 'notes', label: 'Notas', value: c.notes, type: 'textarea' },
+  { name: 'name', label: tr('Nombre'), value: c.name, required: true },
+  { name: 'address', label: tr('Dirección'), value: c.address },
+  { name: 'residential', label: tr('Nombre del residencial'), value: c.residential },
+  { name: 'phone', label: tr('Teléfono'), value: c.phone, type: 'tel' },
+  { name: 'email', label: tr('Correo'), value: c.email, type: 'email' },
+  { name: 'notes', label: tr('Notas'), value: c.notes, type: 'textarea' },
 ];
 
 async function viewClient(id) {
@@ -511,33 +511,33 @@ async function viewClient(id) {
       <div class="row"><div class="grow">
         ${c.address ? `<div>${ic('pin')} ${esc(c.address)}</div>` : ''}${c.residential ? `<div>${ic('house')} ${esc(c.residential)}</div>` : ''}${geoLine(c.geo)}${c.phone ? `<div>${ic('phone')} <a href="tel:${esc(c.phone)}">${esc(c.phone)}</a></div>` : ''}
         ${c.email ? `<div>${ic('mail')} <a href="mailto:${esc(c.email)}">${esc(c.email)}</a></div>` : ''}${c.notes ? `<p class="muted">${esc(c.notes)}</p>` : ''}
-      </div><div class="col"><button id="here">${ic('pin')} Estoy aquí</button><button id="edit">Editar</button><button id="del" class="danger">Eliminar</button></div></div>
+      </div><div class="col"><button id="here">${ic('pin')} ${tr('Estoy aquí')}</button><button id="edit">${tr('Editar')}</button><button id="del" class="danger">${tr('Eliminar')}</button></div></div>
     </section>
-    <div class="toolbar"><h2 class="grow">Reportes</h2><button class="primary" id="add">+ Reporte</button></div>
+    <div class="toolbar"><h2 class="grow">${tr('Reportes')}</h2><button class="primary" id="add">+ ${tr('Reporte')}</button></div>
     <ul class="list">
       ${reports.map(r => `<li><a href="#/r/${r.id}"><div class="grow"><b>${esc(r.title)}</b><small>${fmtDate(r.date)}${r.location ? ' · ' + esc(r.location) : ''}</small></div><span class="chev">›</span></a></li>`).join('')}
     </ul>
-    ${reports.length ? '' : '<div class="empty"><p>Sin reportes todavía.</p></div>'}`;
+    ${reports.length ? '' : `<div class="empty"><p>${tr('Sin reportes todavía.')}</p></div>`}`;
   $('#edit').onclick = async () => {
-    const v = await form('Editar cliente', clientFields(c)); if (!v) return;
+    const v = await form(tr('Editar cliente'), clientFields(c)); if (!v) return;
     await DB.put('clients', { ...c, ...v, updatedAt: Date.now() }); route();
   };
   $('#here').onclick = async e => {
     const g = await withLocation(e.target); if (!g) return;
     c.geo = g;
-    await DB.put('clients', { ...c, updatedAt: Date.now() }); toast('Ubicación guardada'); route();
+    await DB.put('clients', { ...c, updatedAt: Date.now() }); toast(tr('Ubicación guardada')); route();
   };
   $('#del').onclick = async () => {
-    if (!confirm(`¿Eliminar a ${c.name} y todos sus reportes, fotos y videos?`)) return;
+    if (!confirm(tr('¿Eliminar a {name} y todos sus reportes, fotos y videos?', { name: c.name }))) return;
     await DB.deleteClient(id); location.hash = '#/';
   };
   $('#add').onclick = async () => {
-    const v = await form('Nuevo reporte', [
-      { name: 'title', label: 'Título', value: `Inspección ${new Date().toLocaleDateString('es')}`, required: true },
-      { name: 'location', label: 'Ubicación', value: c.address },
-      { name: 'gps', label: 'Guardar mi ubicación GPS actual', type: 'checkbox', value: true },
-      { name: 'tpl', label: 'Plantilla de secciones', type: 'select', value: '', options: [['', 'Una sola sección (General)'], ...Object.keys(SECTION_TEMPLATES).map(k => [k, k])] },
-    ], 'Crear');
+    const v = await form(tr('Nuevo reporte'), [
+      { name: 'title', label: tr('Título'), value: `${tr('Inspección')} ${new Date().toLocaleDateString(I18N.lang)}`, required: true },
+      { name: 'location', label: tr('Ubicación'), value: c.address },
+      { name: 'gps', label: tr('Guardar mi ubicación GPS actual'), type: 'checkbox', value: true },
+      { name: 'tpl', label: tr('Plantilla de secciones'), type: 'select', value: '', options: [['', tr('Una sola sección (General)')], ...Object.keys(SECTION_TEMPLATES).map(k => [k, k])] },
+    ], tr('Crear'));
     if (!v) return;
     const names = SECTION_TEMPLATES[v.tpl] || ['General'];
     const r = {
@@ -546,7 +546,7 @@ async function viewClient(id) {
       layout: { orientation: 'portrait', cols: 2, rows: 3 }, cover: true, coverImage: true,
     };
     if (v.gps) {
-      toast('Obteniendo ubicación…');
+      toast(tr('Obteniendo ubicación…'));
       try {
         r.geo = await getLocation();
         if (!c.geo) c.geo = r.geo;
@@ -573,12 +573,12 @@ async function viewReport(id) {
       ${c?.residential ? `<div>${ic('house')} ${esc(c.residential)}</div>` : ''}
       ${geoLine(r.geo)}
       ${simple && r.geo ? mapEmbed(r.geo) : ''}
-      <div class="muted">${nPhotos} fotos · ${nVideos} videos${r.coverPhoto ? ' · con foto de portada' : ''}</div>
+      <div class="muted">${tr('{p} fotos · {v} videos', { p: nPhotos, v: nVideos })}${r.coverPhoto ? ' · ' + tr('con foto de portada') : ''}</div>
       <div class="row wrap">
-        <button class="primary" id="pdf">${ic('arrow')} Enviar PDF${nVideos ? ' + videos' : ''}</button>
-        <button id="coverbtn">${ic('gallery')} Portada</button>
-        <button id="here">${ic('pin')} Ubicación</button>
-        <button id="settings">${ic('gear')} Ajustes</button>
+        <button class="primary" id="pdf">${ic('arrow')} ${tr(nVideos ? 'Enviar PDF + videos' : 'Enviar PDF')}</button>
+        <button id="coverbtn">${ic('gallery')} ${tr('Portada')}</button>
+        <button id="here">${ic('pin')} ${tr('Ubicación')}</button>
+        <button id="settings">${ic('gear')} ${tr('Ajustes')}</button>
         <button id="more">⋯</button>
       </div>
     </section>
@@ -613,19 +613,19 @@ async function viewReport(id) {
       if (a === 'cam') { await openCamera(f => addMedia(r, sid, [f])); return route(); }
       if (a === 'photo') { const f = await pickFiles('image/*', { capture: true }); if (f.length) { await addMedia(r, sid, f); route(); } }
       if (a === 'video') { const f = await pickFiles('video/*', { capture: true }); if (f.length) { await addMedia(r, sid, f); route(); } }
-      if (a === 'gallery') { const f = await pickFiles('image/*,video/*', { multiple: true }); if (f.length) { toast('Importando…'); await addMedia(r, sid, f); route(); } }
+      if (a === 'gallery') { const f = await pickFiles('image/*,video/*', { multiple: true }); if (f.length) { toast(tr('Importando…')); await addMedia(r, sid, f); route(); } }
       if (a === 'secedit') {
         const s = r.sections.find(x => x.id === sid);
-        const v = await form('Sección', [
-          { name: 'title', label: 'Título', value: s.title, required: true },
-          { name: 'text', label: 'Texto / párrafo (aparece en el PDF)', value: s.text, type: 'textarea' },
-          { name: 'pos', label: 'Posición', type: 'select', value: 'same', options: [['same', 'Sin cambio'], ['up', 'Subir'], ['down', 'Bajar']] },
-          { name: 'del', label: 'Eliminar sección (y sus elementos)', type: 'checkbox', value: false },
+        const v = await form(tr('Sección'), [
+          { name: 'title', label: tr('Título'), value: s.title, required: true },
+          { name: 'text', label: tr('Texto / párrafo (aparece en el PDF)'), value: s.text, type: 'textarea' },
+          { name: 'pos', label: tr('Posición'), type: 'select', value: 'same', options: [['same', tr('Sin cambio')], ['up', tr('Subir')], ['down', tr('Bajar')]] },
+          { name: 'del', label: tr('Eliminar sección (y sus elementos)'), type: 'checkbox', value: false },
         ]);
         if (!v) return;
         const idx = r.sections.indexOf(s);
         if (v.del) {
-          if (!confirm('¿Eliminar la sección y todo su contenido?')) return;
+          if (!confirm(tr('¿Eliminar la sección y todo su contenido?'))) return;
           for (const it of items.filter(i => i.sectionId === sid)) await DB.del('items', it.id);
           r.sections.splice(idx, 1);
           if (!r.sections.length) r.sections.push({ id: DB.uid(), title: 'General', text: '' });
@@ -640,10 +640,10 @@ async function viewReport(id) {
   });
 
   if ($('#addsec')) $('#addsec').onclick = async () => {
-    const v = await form('Agregar secciones', [
-      { name: 'title', label: 'Título de la nueva sección', value: '' },
-      { name: 'tpl', label: 'o agregar desde plantilla', type: 'select', value: '', options: [['', '—'], ...Object.keys(SECTION_TEMPLATES).map(k => [k, k])] },
-    ], 'Agregar');
+    const v = await form(tr('Agregar secciones'), [
+      { name: 'title', label: tr('Título de la nueva sección'), value: '' },
+      { name: 'tpl', label: tr('o agregar desde plantilla'), type: 'select', value: '', options: [['', '—'], ...Object.keys(SECTION_TEMPLATES).map(k => [k, k])] },
+    ], tr('Agregar'));
     if (!v) return;
     const names = v.tpl ? SECTION_TEMPLATES[v.tpl] : v.title ? [v.title] : [];
     names.forEach(t => r.sections.push({ id: DB.uid(), title: t, text: '' }));
@@ -653,22 +653,22 @@ async function viewReport(id) {
   $('#here').onclick = async e => {
     const g = await withLocation(e.target); if (!g) return;
     r.geo = g;
-    await DB.put('reports', r); toast('Ubicación guardada en el reporte'); route();
+    await DB.put('reports', r); toast(tr('Ubicación guardada en el reporte')); route();
   };
   $('#settings').onclick = async () => {
     const clientPart = simple && c ? [
-      { name: 'cname', label: 'Nombre del cliente', value: c.name, required: true },
-      { name: 'caddress', label: 'Dirección', value: c.address },
-      { name: 'cresidential', label: 'Nombre del residencial', value: c.residential },
-      { name: 'cphone', label: 'Teléfono', value: c.phone, type: 'tel' },
+      { name: 'cname', label: tr('Nombre del cliente'), value: c.name, required: true },
+      { name: 'caddress', label: tr('Dirección'), value: c.address },
+      { name: 'cresidential', label: tr('Nombre del residencial'), value: c.residential },
+      { name: 'cphone', label: tr('Teléfono'), value: c.phone, type: 'tel' },
     ] : [];
-    const v = await form('Ajustes del reporte', [
+    const v = await form(tr('Ajustes del reporte'), [
       ...clientPart,
-      { name: 'title', label: 'Título', value: r.title, required: true },
-      { name: 'location', label: 'Ubicación', value: r.location },
-      { name: 'date', label: 'Fecha', type: 'date', value: new Date(r.date).toISOString().slice(0, 10) },
-      { name: 'cover', label: 'Incluir portada', type: 'checkbox', value: r.cover !== false },
-      { name: 'notes', label: 'Observaciones generales', value: r.notes, type: 'textarea' },
+      { name: 'title', label: tr('Título'), value: r.title, required: true },
+      { name: 'location', label: tr('Ubicación'), value: r.location },
+      { name: 'date', label: tr('Fecha'), type: 'date', value: new Date(r.date).toISOString().slice(0, 10) },
+      { name: 'cover', label: tr('Incluir portada'), type: 'checkbox', value: r.cover !== false },
+      { name: 'notes', label: tr('Observaciones generales'), value: r.notes, type: 'textarea' },
     ]);
     if (!v) return;
     Object.assign(r, {
@@ -687,8 +687,8 @@ async function viewReport(id) {
   const entryCap = Object.fromEntries((r.entries || []).map(e => [e.id, e.caption]));
   const exportData = async () => ({ company: await DB.getSettings(), client: c || {}, report: r, sections: r.sections,
     items: [...items].sort((a, b) => a.order - b.order).map(i => (i.entryId in entryCap ? { ...i, caption: entryCap[i.entryId] } : i)) });
-  const busy = async (btn, fn) => { btn.disabled = true; const t = btn.innerHTML; btn.textContent = 'Generando…'; try { await fn(); } catch (e) { console.error(e); toast('Error: ' + e.message, 5000); } btn.disabled = false; btn.innerHTML = t; };
-  const base = Exporter.slug(r.title) || 'reporte';
+  const busy = async (btn, fn) => { btn.disabled = true; const t = btn.innerHTML; btn.textContent = tr('Generando…'); try { await fn(); } catch (e) { console.error(e); toast(tr('Error:') + ' ' + e.message, 5000); } btn.disabled = false; btn.innerHTML = t; };
+  const base = Exporter.slug(r.title) || tr('reporte');
   // Enviar: primero el PDF y, si hay videos, después los videos como archivos aparte
   // (WhatsApp no acepta PDF y video en el mismo envío, por eso van en dos pasos).
   $('#pdf').onclick = e => busy(e.target, async () => {
@@ -699,20 +699,20 @@ async function viewReport(id) {
     if (videos.length) await sendVideosStep(videos, r.title);
   });
   $('#coverbtn').onclick = async () => {
-    const opts = [['take', 'Tomar foto', '', 'camera'], ['pick', 'Elegir de galería', '', 'gallery']];
-    if (r.coverPhoto) opts.push(['see', 'Ver portada actual', '', 'eye'], ['del', 'Quitar foto de portada', 'danger']);
-    const a = await actionSheet('Foto de portada', opts);
+    const opts = [['take', tr('Tomar foto'), '', 'camera'], ['pick', tr('Elegir de galería'), '', 'gallery']];
+    if (r.coverPhoto) opts.push(['see', tr('Ver portada actual'), '', 'eye'], ['del', tr('Quitar foto de portada'), 'danger']);
+    const a = await actionSheet(tr('Foto de portada'), opts);
     if (a === 'take' || a === 'pick') {
       const [f] = await pickFiles('image/*', { capture: a === 'take' });
-      if (f) { r.coverPhoto = f; await DB.put('reports', r); toast('Foto de portada guardada'); route(); }
+      if (f) { r.coverPhoto = f; await DB.put('reports', r); toast(tr('Foto de portada guardada')); route(); }
     }
     if (a === 'see') openViewer(r.coverPhoto);
     if (a === 'del') { delete r.coverPhoto; await DB.put('reports', r); route(); }
   };
   $('#more').onclick = async () => {
-    const v = await form('Más opciones', [{ name: 'act', label: 'Acción', type: 'select', value: 'share', options: [
-      ['share', 'Compartir reporte editable (.rplus)'], ['dup', 'Duplicar reporte'], ['del', 'Eliminar reporte'],
-    ] }], 'Aceptar');
+    const v = await form(tr('Más opciones'), [{ name: 'act', label: tr('Acción'), type: 'select', value: 'share', options: [
+      ['share', tr('Compartir reporte editable (.rplus)')], ['dup', tr('Duplicar reporte')], ['del', tr('Eliminar reporte')],
+    ] }], tr('Aceptar'));
     if (!v) return;
     if (v.act === 'share') {
       const blob = await Backup.exportBundle([c], [r], items);
@@ -720,12 +720,12 @@ async function viewReport(id) {
     }
     if (v.act === 'dup') {
       const map = {};
-      const copy = { ...r, id: DB.uid(), title: r.title + ' (copia)', date: Date.now(), sections: r.sections.map(s => { const n = { ...s, id: DB.uid() }; map[s.id] = n.id; return n; }) };
+      const copy = { ...r, id: DB.uid(), title: r.title + ' (' + tr('copia') + ')', date: Date.now(), sections: r.sections.map(s => { const n = { ...s, id: DB.uid() }; map[s.id] = n.id; return n; }) };
       await DB.put('reports', copy);
       for (const it of items) await DB.put('items', { ...it, id: DB.uid(), reportId: copy.id, sectionId: map[it.sectionId] });
       location.hash = `#/r/${copy.id}`;
     }
-    if (v.act === 'del' && confirm('¿Eliminar este reporte con todas sus fotos y videos?')) {
+    if (v.act === 'del' && confirm(tr('¿Eliminar este reporte con todas sus fotos y videos?'))) {
       await DB.deleteReport(id); location.hash = simple ? '#/' : `#/c/${r.clientId}`;
     }
   };
@@ -743,11 +743,11 @@ function simpleReportBody(r, items) {
   ].sort((a, b) => a.t - b.t);
   function entryRow(e, its) {
     const thumbs = its.slice(0, 4).map(it => { const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob); return `<span class="ithumb sm">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : ic('video')}</span>`; }).join('');
-    return `<li class="irow"><div class="when">${fmtWhen(e.createdAt)} · ${ic('burst')} Ráfaga</div>
+    return `<li class="irow"><div class="when">${fmtWhen(e.createdAt)} · ${ic('burst')} ${tr('Ráfaga')}</div>
       <a href="#/e/${r.id}/${e.id}" class="irow-main col-main">
-        <span class="itext"><b>${esc(e.caption || 'Ráfaga')}</b> <span class="muted">(${its.length} ${its.length === 1 ? 'foto' : 'fotos'})</span></span>
+        <span class="itext"><b>${esc(e.caption || tr('Ráfaga'))}</b> <span class="muted">(${its.length} ${tr(its.length === 1 ? 'foto' : 'fotos')})</span></span>
         <span class="strip">${thumbs}${its.length > 4 ? `<span class="more">+${its.length - 4}</span>` : ''}</span>
-      </a><button class="kebab" data-emenu="${e.id}" aria-label="Opciones">⋮</button></li>`;
+      </a><button class="kebab" data-emenu="${e.id}" aria-label="${tr('Opciones')}">⋮</button></li>`;
   }
   function row(it) {
     const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob);
@@ -755,13 +755,13 @@ function simpleReportBody(r, items) {
     return `<li class="irow"><div class="when">${fmtWhen(it.createdAt)}</div>
       <a href="#/i/${it.id}" class="irow-main">
         <span class="ithumb">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : ic('video')}${it.type === 'video' ? `<span class="vbadge">▶ ${fmtDur(it.duration)}</span>` : ''}</span>
-        <span class="itext">${text ? esc(text) : '<span class="muted">Toca para agregar descripción y medidas</span>'}</span>
-      </a><button class="kebab" data-imenu="${it.id}" aria-label="Opciones">⋮</button></li>`;
+        <span class="itext">${text ? esc(text) : `<span class="muted">${tr('Toca para agregar descripción y medidas')}</span>`}</span>
+      </a><button class="kebab" data-imenu="${it.id}" aria-label="${tr('Opciones')}">⋮</button></li>`;
   }
   return `
     ${rows.length ? `<ul class="ilist">${rows.map(x => x.html).join('')}</ul>`
-    : '<div class="empty"><p>Todavía no hay fotos ni videos.</p><p>Pulsa <b>+</b> para agregar fotos o videos.</p></div>'}
-    <button class="fab" id="newItem" aria-label="Agregar foto o video">${ic('plus')}</button>`;
+    : `<div class="empty"><p>${tr('Todavía no hay fotos ni videos.')}</p><p>${tr('Pulsa <b>+</b> para agregar fotos o videos.')}</p></div>`}
+    <button class="fab" id="newItem" aria-label="${tr('Agregar foto o video')}">${ic('plus')}</button>`;
 }
 
 // Ventana del botón +: área, descripción, medida y cómo capturar.
@@ -770,16 +770,16 @@ function newItemSheet(r) {
     const d = document.createElement('dialog');
     d.className = 'sheet';
     const area = currentArea[r.id];
-    d.innerHTML = `<form method="dialog"><h2>Agregar</h2>
-      <label>Descripción<textarea name="caption" class="autogrow" rows="1" placeholder="Ej. Oficina"></textarea></label>
-      <label>Nota / Medida <small>(en Ráfaga cada foto lleva la suya)</small><textarea name="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36"></textarea></label>
+    d.innerHTML = `<form method="dialog"><h2>${tr('Agregar')}</h2>
+      <label>${tr('Descripción')}<textarea name="caption" class="autogrow" rows="1" placeholder="${tr('Ej. Oficina')}"></textarea></label>
+      <label>${tr('Nota / Medida')} <small>(${tr('en Ráfaga cada foto lleva la suya')})</small><textarea name="measure" class="autogrow" rows="3" placeholder="${tr('Ej. 36 x 48')}&#10;${tr('Ventana 24 x 36')}"></textarea></label>
       <div class="cap-btns">
-        <button type="button" data-a="cam">${ic('burst')}<small>Ráfaga</small></button>
-        <button type="button" data-a="photo">${ic('camera')}<small>Foto</small></button>
-        <button type="button" data-a="video">${ic('video')}<small>Video</small></button>
-        <button type="button" data-a="gallery">${ic('gallery')}<small>Galería</small></button>
+        <button type="button" data-a="cam">${ic('burst')}<small>${tr('Ráfaga')}</small></button>
+        <button type="button" data-a="photo">${ic('camera')}<small>${tr('Foto')}</small></button>
+        <button type="button" data-a="video">${ic('video')}<small>${tr('Video')}</small></button>
+        <button type="button" data-a="gallery">${ic('gallery')}<small>${tr('Galería')}</small></button>
       </div>
-      <div class="row end"><button value="cancel" formnovalidate>Cancelar</button></div>
+      <div class="row end"><button value="cancel" formnovalidate>${tr('Cancelar')}</button></div>
     </form>`;
     document.body.appendChild(d);
     d.querySelectorAll('textarea.autogrow').forEach(el => el.addEventListener('input', () => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; }));
@@ -821,30 +821,30 @@ function bindSimpleReport(r, items) {
     }
     const f = await v.files;
     if (!f.length) return;
-    if (v.action === 'gallery') toast('Importando…');
+    if (v.action === 'gallery') toast(tr('Importando…'));
     const ids = await addMedia(r, sid, f, extra);
     // Foto o video: directo a escribir descripción y nota / medida.
     if (ids.length === 1) location.hash = `#/i/${ids[0]}`; else route();
   };
   view.querySelectorAll('[data-emenu]').forEach(b => b.onclick = async () => {
     const e = r.entries.find(x => x.id === b.dataset.emenu);
-    const a = await actionSheet(e.caption || 'Ráfaga', [['open', 'Abrir'], ['del', 'Eliminar ráfaga completa', 'danger', 'trash']]);
+    const a = await actionSheet(e.caption || tr('Ráfaga'), [['open', tr('Abrir')], ['del', tr('Eliminar ráfaga completa'), 'danger', 'trash']]);
     if (a === 'open') location.hash = `#/e/${r.id}/${e.id}`;
-    if (a === 'del' && confirm('¿Eliminar esta ráfaga con todas sus fotos?')) {
+    if (a === 'del' && confirm(tr('¿Eliminar esta ráfaga con todas sus fotos?'))) {
       for (const it of items.filter(i => i.entryId === e.id)) await DB.del('items', it.id);
       r.entries = r.entries.filter(x => x !== e); await DB.put('reports', r); route();
     }
   });
   view.querySelectorAll('[data-imenu]').forEach(b => b.onclick = async () => {
     const it = items.find(x => x.id === b.dataset.imenu);
-    const opts = [['open', 'Abrir'], ['del', 'Eliminar', 'danger', 'trash']];
-    const a = await actionSheet(it.type === 'video' ? 'Video' : 'Foto', opts);
+    const opts = [['open', tr('Abrir')], ['del', tr('Eliminar'), 'danger', 'trash']];
+    const a = await actionSheet(tr(it.type === 'video' ? 'Video' : 'Foto'), opts);
     if (a === 'open') location.hash = `#/i/${it.id}`;
     if (a === 'area') {
-      const v = await form('Cambiar de área', [{ name: 's', label: 'Área', type: 'select', value: it.sectionId, options: r.sections.map(s => [s.id, s.title]) }]);
+      const v = await form(tr('Cambiar de área'), [{ name: 's', label: tr('Área'), type: 'select', value: it.sectionId, options: r.sections.map(s => [s.id, s.title]) }]);
       if (v) { it.sectionId = v.s; await DB.put('items', it); route(); }
     }
-    if (a === 'del' && confirm('¿Eliminar este elemento?')) { await DB.del('items', it.id); route(); }
+    if (a === 'del' && confirm(tr('¿Eliminar este elemento?'))) { await DB.del('items', it.id); route(); }
   });
 }
 
@@ -853,31 +853,31 @@ async function viewEntry(rid, eid) {
   const r = await DB.get('reports', rid);
   const e = r && (r.entries || []).find(x => x.id === eid);
   if (!e) return (location.hash = r ? `#/r/${rid}` : '#/');
-  setHeader(e.caption || 'Ráfaga', `#/r/${rid}`);
+  setHeader(e.caption || tr('Ráfaga'), `#/r/${rid}`);
   const its = (await DB.byIndex('items', 'reportId', rid)).filter(i => i.entryId === eid).sort((a, b) => a.order - b.order);
   view.innerHTML = `
     <section class="card">
-      <label>Descripción<textarea id="ecap" class="autogrow" rows="1" placeholder="Ej. Cocina">${esc(e.caption)}</textarea></label>
+      <label>${tr('Descripción')}<textarea id="ecap" class="autogrow" rows="1" placeholder="${tr('Ej. Cocina')}">${esc(e.caption)}</textarea></label>
     </section>
     <ul class="blist">${its.map((it, n) => {
       const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob);
       return `<li class="card bitem" data-id="${it.id}">
-        <div class="bhead"><b>${it.type === 'video' ? 'Video' : 'Foto'} ${n + 1}</b><button class="kebab" data-bdel="${it.id}" aria-label="Eliminar">${ic('trash')}</button></div>
+        <div class="bhead"><b>${tr(it.type === 'video' ? 'Video' : 'Foto')} ${n + 1}</b><button class="kebab" data-bdel="${it.id}" aria-label="${tr('Eliminar')}">${ic('trash')}</button></div>
         <a href="#/i/${it.id}" class="bmedia">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : ic('video')}${it.type === 'video' ? `<span class="vbadge">▶ ${fmtDur(it.duration)}</span>` : ''}</a>
-        <label>Nota / Medida<textarea class="autogrow bmeasure" rows="1" placeholder="Ej. 36 x 48">${esc(it.measure)}</textarea></label>
+        <label>${tr('Nota / Medida')}<textarea class="autogrow bmeasure" rows="1" placeholder="${tr('Ej. 36 x 48')}">${esc(it.measure)}</textarea></label>
       </li>`;
     }).join('')}</ul>
-    ${its.length ? '' : '<div class="empty"><p>Sin fotos todavía.</p></div>'}
+    ${its.length ? '' : `<div class="empty"><p>${tr('Sin fotos todavía.')}</p></div>`}
     <div class="cap-btns entry-add">
-      <button data-a="cam">${ic('burst')}<small>Más ráfaga</small></button>
-      <button data-a="photo">${ic('camera')}<small>Foto</small></button>
-      <button data-a="video">${ic('video')}<small>Video</small></button>
-      <button data-a="gallery">${ic('gallery')}<small>Galería</small></button>
+      <button data-a="cam">${ic('burst')}<small>${tr('Más ráfaga')}</small></button>
+      <button data-a="photo">${ic('camera')}<small>${tr('Foto')}</small></button>
+      <button data-a="video">${ic('video')}<small>${tr('Video')}</small></button>
+      <button data-a="gallery">${ic('gallery')}<small>${tr('Galería')}</small></button>
     </div>`;
   const grow = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; };
   const ecap = $('#ecap');
   grow(ecap);
-  ecap.addEventListener('input', () => { grow(ecap); setHeader(ecap.value.trim() || 'Ráfaga', `#/r/${rid}`); clearTimeout(ecap.t); ecap.t = setTimeout(async () => { e.caption = ecap.value.trim(); await DB.put('reports', r); }, 400); });
+  ecap.addEventListener('input', () => { grow(ecap); setHeader(ecap.value.trim() || tr('Ráfaga'), `#/r/${rid}`); clearTimeout(ecap.t); ecap.t = setTimeout(async () => { e.caption = ecap.value.trim(); await DB.put('reports', r); }, 400); });
   view.querySelectorAll('.bitem').forEach(li => {
     const it = its.find(x => x.id === li.dataset.id);
     const ta = $('.bmeasure', li);
@@ -885,7 +885,7 @@ async function viewEntry(rid, eid) {
     ta.addEventListener('input', () => { grow(ta); clearTimeout(ta.t); ta.t = setTimeout(() => { it.measure = ta.value.trim(); DB.put('items', it); }, 400); });
   });
   view.querySelectorAll('[data-bdel]').forEach(b => b.onclick = async () => {
-    if (!confirm('¿Eliminar esta foto?')) return;
+    if (!confirm(tr('¿Eliminar esta foto?'))) return;
     await DB.del('items', b.dataset.bdel); route();
   });
   const sid = r.sections[0].id;
@@ -907,26 +907,26 @@ async function viewItem(id) {
   const siblings = (await DB.byIndex('items', 'reportId', r.id)).sort((a, b) => a.order - b.order);
   const idx = siblings.findIndex(s => s.id === id);
   const inEntry = it.entryId && (r.entries || []).some(e => e.id === it.entryId);
-  setHeader(it.type === 'video' ? 'Video' : 'Foto', inEntry ? `#/e/${r.id}/${it.entryId}` : `#/r/${r.id}`);
+  setHeader(tr(it.type === 'video' ? 'Video' : 'Foto'), inEntry ? `#/e/${r.id}/${it.entryId}` : `#/r/${r.id}`);
   const media = it.type === 'video'
     ? `<video controls playsinline src="${objUrl(it.blob)}" ${it.thumb ? `poster="${objUrl(it.thumb)}"` : ''}></video>`
     : `<img src="${objUrl(it.annotated || it.blob)}" alt="">`;
   view.innerHTML = `
     <div class="media">${media}</div>
     <div class="row wrap">
-      ${it.type === 'photo' ? `<button class="primary" id="annot">${ic('pencil')} Anotar / medir</button>` : `<button id="rethumb">${ic('gallery')} Cambiar miniatura</button>`}
-      <button id="prev" ${idx <= 0 ? 'disabled' : ''}>‹ Anterior</button>
-      <button id="next" ${idx >= siblings.length - 1 ? 'disabled' : ''}>Siguiente ›</button>
+      ${it.type === 'photo' ? `<button class="primary" id="annot">${ic('pencil')} ${tr('Anotar / medir')}</button>` : `<button id="rethumb">${ic('gallery')} ${tr('Cambiar miniatura')}</button>`}
+      <button id="prev" ${idx <= 0 ? 'disabled' : ''}>‹ ${tr('Anterior')}</button>
+      <button id="next" ${idx >= siblings.length - 1 ? 'disabled' : ''}>${tr('Siguiente')} ›</button>
     </div>
     <section class="card">
-      <label ${inEntry ? 'hidden' : ''}>Descripción<textarea id="caption" class="autogrow" rows="1" placeholder="Ej. Oficina">${esc(it.caption)}</textarea></label>
-      <label>Nota / Medida<textarea id="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36">${esc(it.measure)}</textarea></label>
-      <label ${r.sections.length > 1 ? '' : 'hidden'}>Sección<select id="section">${r.sections.map(s => `<option value="${s.id}" ${s.id === it.sectionId ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}</select></label>
+      <label ${inEntry ? 'hidden' : ''}>${tr('Descripción')}<textarea id="caption" class="autogrow" rows="1" placeholder="${tr('Ej. Oficina')}">${esc(it.caption)}</textarea></label>
+      <label>${tr('Nota / Medida')}<textarea id="measure" class="autogrow" rows="3" placeholder="${tr('Ej. 36 x 48')}&#10;${tr('Ventana 24 x 36')}">${esc(it.measure)}</textarea></label>
+      <label ${r.sections.length > 1 ? '' : 'hidden'}>${tr('Sección')}<select id="section">${r.sections.map(s => `<option value="${s.id}" ${s.id === it.sectionId ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}</select></label>
       <div class="row wrap">
-        <button id="up">${ic('arrow')} Mover antes</button><button id="down">${ic('arrow', 180)} Mover después</button>
-        ${it.type === 'photo' ? `<button id="cover">${ic('star')} Usar en portada</button>` : ''}
-        <button id="save1">${ic('arrow', 180)} Descargar archivo</button>
-        <button id="del" class="danger">Eliminar</button>
+        <button id="up">${ic('arrow')} ${tr('Mover antes')}</button><button id="down">${ic('arrow', 180)} ${tr('Mover después')}</button>
+        ${it.type === 'photo' ? `<button id="cover">${ic('star')} ${tr('Usar en portada')}</button>` : ''}
+        <button id="save1">${ic('arrow', 180)} ${tr('Descargar archivo')}</button>
+        <button id="del" class="danger">${tr('Eliminar')}</button>
       </div>
     </section>`;
 
@@ -955,16 +955,16 @@ async function viewItem(id) {
     if (j < 0 || j >= same.length) return;
     const other = same[j];
     [it.order, other.order] = [other.order, it.order];
-    await DB.put('items', it); await DB.put('items', other); toast('Movido');
+    await DB.put('items', it); await DB.put('items', other); toast(tr('Movido'));
   };
   $('#up').onclick = () => swap(-1);
   $('#down').onclick = () => swap(1);
   $('#save1').onclick = () => download(it.type === 'photo' ? (it.annotated || it.blob) : it.blob, `${it.type}_${it.id}.${(it.blob.type.split('/')[1] || 'bin').split(';')[0]}`);
   $('#del').onclick = async () => {
-    if (!confirm('¿Eliminar este elemento?')) return;
+    if (!confirm(tr('¿Eliminar este elemento?'))) return;
     await DB.del('items', id); location.hash = inEntry ? `#/e/${r.id}/${it.entryId}` : `#/r/${r.id}`;
   };
-  if ($('#cover')) $('#cover').onclick = async () => { r.coverPhoto = it.annotated || it.blob; await DB.put('reports', r); toast('Se usará en la portada'); };
+  if ($('#cover')) $('#cover').onclick = async () => { r.coverPhoto = it.annotated || it.blob; await DB.put('reports', r); toast(tr('Se usará en la portada')); };
   if ($('#annot')) $('#annot').onclick = async () => {
     await save();
     const res = await Annotator.open(it.blob, it.shapes || []);
@@ -978,51 +978,55 @@ async function viewItem(id) {
     c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext('2d').drawImage(v, 0, 0);
     it.thumb = await new Promise(res => c.toBlob(res, 'image/jpeg', 0.85));
-    await DB.put('items', it); toast('Miniatura tomada del momento actual del video');
+    await DB.put('items', it); toast(tr('Miniatura tomada del momento actual del video'));
   };
 }
 
 async function viewSettings() {
-  setHeader('Mi empresa', '#/');
+  setHeader(tr('Mi empresa'), '#/');
   const s = await DB.getSettings();
   view.innerHTML = `
     <section class="card">
-      <p class="muted">Estos datos aparecen en la portada y encabezado de tus reportes.</p>
-      <div class="logo-box">${s.logo ? `<img src="${objUrl(s.logo)}" alt="Logo">` : '<span class="muted">Sin logo</span>'}</div>
-      <div class="row"><button id="logo">Elegir logo</button>${s.logo ? '<button id="nologo">Quitar</button>' : ''}</div>
-      <label>Empresa<input id="name" value="${esc(s.name)}"></label>
-      <label>Persona de contacto<input id="contact" value="${esc(s.contact)}"></label>
-      <label>Teléfono<input id="phone" type="tel" value="${esc(s.phone)}"></label>
-      <label>Correo<input id="email" type="email" value="${esc(s.email)}"></label>
-      <button class="primary wide" id="save">Guardar</button>
+      <label>${tr('Idioma')} · Language · Langue<select id="lang">${I18N.LANGS.map(([k, n]) => `<option value="${k}" ${k === I18N.lang ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
     </section>
     <section class="card">
-      <h2>Respaldo</h2>
-      <p class="muted">Todo se guarda solo en este teléfono. Haz respaldos para no perder tus reportes, o para pasarlos a otro equipo.</p>
-      <div class="row wrap"><button id="backup">${ic('arrow', 180)} Crear respaldo</button><button id="restore">${ic('arrow')} Restaurar / importar .rplus</button></div>
+      <p class="muted">${tr('Estos datos aparecen en la portada y encabezado de tus reportes.')}</p>
+      <div class="logo-box">${s.logo ? `<img src="${objUrl(s.logo)}" alt="Logo">` : `<span class="muted">${tr('Sin logo')}</span>`}</div>
+      <div class="row"><button id="logo">${tr('Elegir logo')}</button>${s.logo ? `<button id="nologo">${tr('Quitar')}</button>` : ''}</div>
+      <label>${tr('Empresa')}<input id="name" value="${esc(s.name)}"></label>
+      <label>${tr('Persona de contacto')}<input id="contact" value="${esc(s.contact)}"></label>
+      <label>${tr('Teléfono')}<input id="phone" type="tel" value="${esc(s.phone)}"></label>
+      <label>${tr('Correo')}<input id="email" type="email" value="${esc(s.email)}"></label>
+      <button class="primary wide" id="save">${tr('Guardar')}</button>
+    </section>
+    <section class="card">
+      <h2>${tr('Respaldo')}</h2>
+      <p class="muted">${tr('Todo se guarda solo en este teléfono. Haz respaldos para no perder tus reportes, o para pasarlos a otro equipo.')}</p>
+      <div class="row wrap"><button id="backup">${ic('arrow', 180)} ${tr('Crear respaldo')}</button><button id="restore">${ic('arrow')} ${tr('Restaurar / importar .rplus')}</button></div>
       <p class="muted" id="usage"></p>
     </section>`;
+  $('#lang').onchange = e => { I18N.set(e.target.value); route(); };
   $('#logo').onclick = async () => { const [f] = await pickFiles('image/*'); if (f) { s.logo = f; await DB.saveSettings(s); route(); } };
   if ($('#nologo')) $('#nologo').onclick = async () => { s.logo = null; await DB.saveSettings(s); route(); };
   $('#save').onclick = async () => {
     ['name', 'contact', 'phone', 'email'].forEach(k => { s[k] = $('#' + k).value.trim(); });
-    await DB.saveSettings(s); toast('Guardado');
+    await DB.saveSettings(s); toast(tr('Guardado'));
   };
   $('#backup').onclick = async e => {
-    e.target.disabled = true; toast('Creando respaldo…');
+    e.target.disabled = true; toast(tr('Creando respaldo…'));
     const blob = await Backup.exportBundle(await DB.all('clients'), await DB.all('reports'), await DB.all('items'), s);
-    download(blob, `reportplus_respaldo_${new Date().toISOString().slice(0, 10)}.rplus`);
+    download(blob, `reportplus_${tr('respaldo')}_${new Date().toISOString().slice(0, 10)}.rplus`);
     e.target.disabled = false;
   };
   $('#restore').onclick = async () => {
     const [f] = await pickFiles('.rplus,.zip,application/zip');
     if (!f) return;
     const n = await Backup.importBundle(f);
-    toast(`Importados ${n.clients} cliente(s) y ${n.reports} reporte(s)`); location.hash = '#/';
+    toast(tr('Importados {c} cliente(s) y {r} reporte(s)', { c: n.clients, r: n.reports })); location.hash = '#/';
   };
   if (navigator.storage?.estimate) {
     const { usage, quota } = await navigator.storage.estimate();
-    $('#usage').textContent = `Espacio usado: ${(usage / 1e6).toFixed(1)} MB de ${(quota / 1e9).toFixed(1)} GB disponibles.`;
+    $('#usage').textContent = tr('Espacio usado: {u} MB de {q} GB disponibles.', { u: (usage / 1e6).toFixed(1), q: (quota / 1e9).toFixed(1) });
     navigator.storage.persist?.();
   }
 }
@@ -1063,6 +1067,8 @@ const Backup = {
 // ---------- Router ----------
 async function route() {
   urls.splice(0).forEach(u => URL.revokeObjectURL(u));
+  $('#backBtn').setAttribute('aria-label', tr('Atrás'));
+  $('#settingsBtn').setAttribute('aria-label', tr('Mi empresa'));
   const [, kind, id, id2] = location.hash.split('/');
   try {
     if (kind === 'c') await viewClient(id);
@@ -1073,7 +1079,7 @@ async function route() {
     else if (kind === 'settings') await viewSettings();
     else if (kind === 'clientes') await viewClients();
     else await viewHome();
-  } catch (e) { console.error(e); view.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
+  } catch (e) { console.error(e); view.innerHTML = `<div class="empty">${tr('Error:')} ${esc(e.message)}</div>`; }
   window.scrollTo(0, 0);
 }
 ['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault()));
