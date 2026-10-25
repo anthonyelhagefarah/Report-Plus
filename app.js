@@ -306,7 +306,7 @@ function quickCreateForm() {
   return new Promise(resolve => {
     const d = document.createElement('dialog');
     d.className = 'sheet';
-    d.innerHTML = `<form method="dialog"><h2>Nuevo reporte</h2>
+    d.innerHTML = `<form method="dialog"><h2>Nuevo cliente</h2>
       <label>Nombre del cliente<input name="name" required></label>
       <label>Dirección<div class="row inline"><input name="address" class="grow"><button type="button" id="qgps" class="primary" title="Usar mi ubicación">📍</button></div></label>
       <div id="qgeo" class="muted small">Pulsa 📍 para guardar tu ubicación actual y verla en el mapa.</div>
@@ -383,8 +383,9 @@ async function viewHome(folderId) {
       ${reports.map(r => reportRow(r)).join('')}
       ${folder ? '' : all.filter(r => r.folderId).map(r => reportRow(r, true).replace('<li ', '<li data-infolder ')).join('')}
     </ul>
-    ${reports.length || (!folder && folders.length) ? '' : `<div class="empty"><p>${folder ? 'Carpeta vacía.' : 'Aún no tienes reportes.'}</p><p>Pulsa <b>+</b> para crear uno.</p></div>`}
-    <button class="fab" id="add" aria-label="Crear">+</button>`;
+    ${reports.length || (!folder && folders.length) ? '' : `<div class="empty"><p>${folder ? 'Carpeta vacía.' : 'Aún no tienes clientes.'}</p><p>Pulsa <b>+</b> para crear uno y empezar a tomar fotos.</p></div>`}
+    ${folder ? '' : '<button class="ghost wide" id="newfolder">📁 Nueva carpeta</button>'}
+    <button class="fab" id="add" aria-label="Crear cliente">+</button>`;
   if (!folder) bindModeSwitch();
   $('#q').oninput = e => {
     const q = e.target.value.trim().toLowerCase();
@@ -403,15 +404,11 @@ async function viewHome(folderId) {
     await DB.put('reports', r);
     location.hash = `#/r/${r.id}`;
   };
-  $('#add').onclick = async () => {
-    if (folder) return createReport();
-    const a = await actionSheet('Crear', [['report', '📋 Nuevo reporte', 'primary'], ['folder', '📁 Nueva carpeta']]);
-    if (a === 'report') return createReport();
-    if (a === 'folder') {
-      const v = await form('Nueva carpeta', [{ name: 'name', label: 'Nombre', value: '', required: true }], 'Crear');
-      if (!v || !v.name) return;
-      folders.push({ id: DB.uid(), name: v.name }); await saveFolders(folders); route();
-    }
+  $('#add').onclick = createReport;
+  if ($('#newfolder')) $('#newfolder').onclick = async () => {
+    const v = await form('Nueva carpeta', [{ name: 'name', label: 'Nombre', value: '', required: true }], 'Crear');
+    if (!v || !v.name) return;
+    folders.push({ id: DB.uid(), name: v.name }); await saveFolders(folders); route();
   };
   view.querySelectorAll('[data-menu]').forEach(b => b.onclick = async () => {
     const r = all.find(x => x.id === b.dataset.menu);
