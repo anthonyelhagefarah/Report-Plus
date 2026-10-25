@@ -1033,4 +1033,4 @@ async function route() {
 $('#settingsBtn').onclick = () => { location.hash = '#/settings'; };
 window.addEventListener('hashchange', route);
 route();
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
