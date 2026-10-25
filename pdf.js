@@ -36,7 +36,7 @@ const Exporter = (() => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
     const M = 12, headerH = 14, footerH = 10;
-    const accent = [15, 92, 140];
+    const accent = [200, 75, 49];
     const videoFiles = new Map();
     let videoCount = 0;
     const vids = items.filter(i => i.type === 'video');
