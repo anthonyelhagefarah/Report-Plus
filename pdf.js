@@ -24,8 +24,11 @@ const Exporter = (() => {
   const slug = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w-]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
   const fmtDur = s => s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : '';
 
-  function videoName(item, n) {
-    return `videos/${String(n).padStart(2, '0')}${item.caption ? '_' + slug(item.caption) : ''}.${ext(item.blob, 'mp4')}`;
+  // Nombre del video: "Cliente - Descripción.mp4" (con número si hay varios).
+  const clean = t => (t || '').replace(/[\\/:*?"<>|\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+  function videoName(item, n, clientName, total) {
+    const base = [clean(clientName), clean(item.caption)].filter(Boolean).join(' - ') || 'Video';
+    return `${base}${total > 1 ? ` (${n})` : ''}.${ext(item.blob, 'mp4')}`;
   }
 
   async function buildPdf({ company, client, report, sections, items }) {
@@ -36,14 +39,16 @@ const Exporter = (() => {
     const accent = [15, 92, 140];
     const videoFiles = new Map();
     let videoCount = 0;
-    items.filter(i => i.type === 'video').forEach(i => videoFiles.set(i.id, videoName(i, ++videoCount)));
+    const vids = items.filter(i => i.type === 'video');
+    vids.forEach(i => videoFiles.set(i.id, videoName(i, ++videoCount, client.name, vids.length)));
 
     const header = () => {
       doc.setFillColor(...accent); doc.rect(0, 0, W, 2, 'F');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(40);
-      doc.text(report.title || 'Reporte', M, 9);
+      const addr = report.location || client.address;
+      doc.text(doc.splitTextToSize([client.name || report.title, addr].filter(Boolean).join(' - '), W - 2 * M - 50)[0], M, 9);
       doc.setFont('helvetica', 'normal'); doc.setTextColor(110);
-      doc.text([client.name, company.name].filter(Boolean).join(' · '), W - M, 9, { align: 'right' });
+      if (company.name) doc.text(company.name, W - M, 9, { align: 'right' });
       doc.setDrawColor(220); doc.line(M, 11.5, W - M, 11.5);
     };
 
@@ -106,7 +111,7 @@ const Exporter = (() => {
       const measures = (it.measure || '').split('\n').map(m => m.trim()).filter(Boolean);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
       if (measures.length) out.push({ bold: false, size: 11, lines: doc.splitTextToSize(`Nota / Medida: ${measures[0]}`, width).concat(...measures.slice(1).map(m => doc.splitTextToSize(m, width))) });
-      if (it.type === 'video') out.push({ italic: true, size: 9, lines: doc.splitTextToSize(`Video ${fmtDur(it.duration)} · se envía aparte como ${videoFiles.get(it.id).replace('videos/', '')}`, width) });
+      if (it.type === 'video') out.push({ italic: true, size: 9, lines: doc.splitTextToSize(`Video ${fmtDur(it.duration)} · se envía aparte por WhatsApp: "${videoFiles.get(it.id)}"`, width) });
       return out;
     };
     const lineH = size => size * 0.42;
@@ -193,16 +198,17 @@ const Exporter = (() => {
     const base = slug(data.report.title) || 'reporte';
     zip.file(`${base}.pdf`, pdf);
     data.items.forEach((it, i) => {
-      if (it.type === 'video') zip.file(videoFiles.get(it.id), it.blob);
+      if (it.type === 'video') zip.file('videos/' + videoFiles.get(it.id), it.blob);
       else zip.file(`fotos/${String(i + 1).padStart(2, '0')}.${ext(it.blob, 'jpg')}`, it.annotated || it.blob);
     });
     return zip.generateAsync({ type: 'blob' });
   }
 
   // Archivos de video con el mismo nombre que aparece en el PDF, para enviarlos aparte.
-  function videoFilesFor(items) {
+  function videoFilesFor(items, clientName) {
+    const vids = items.filter(i => i.type === 'video');
     let n = 0;
-    return items.filter(i => i.type === 'video').map(i => new File([i.blob], videoName(i, ++n).replace('videos/', ''), { type: i.blob.type || 'video/mp4' }));
+    return vids.map(i => new File([i.blob], videoName(i, ++n, clientName, vids.length), { type: (i.blob.type || 'video/mp4').split(';')[0] }));
   }
 
   return { buildPdf, buildZip, slug, videoFilesFor };

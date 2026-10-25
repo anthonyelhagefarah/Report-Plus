@@ -95,13 +95,16 @@ function videoThumb(blob) {
 async function addMedia(report, sectionId, files, extra = {}) {
   const existing = await DB.byIndex('items', 'reportId', report.id);
   let order = existing.length;
+  const ids = [];
   for (const f of files) {
     const isVideo = f.type.startsWith('video');
     const item = { id: DB.uid(), reportId: report.id, sectionId, type: isVideo ? 'video' : 'photo', blob: f, caption: '', measure: '', shapes: [], order: order++, createdAt: Date.now(), ...extra };
     if (isVideo) Object.assign(item, await videoThumb(f));
     await DB.put('items', item);
+    ids.push(item.id);
   }
   toast(`${files.length} elemento(s) agregado(s)`);
+  return ids;
 }
 
 // Ubicación GPS actual + dirección aproximada (OpenStreetMap).
@@ -122,6 +125,27 @@ const geoLine = g => g ? `<div>🛰 <a href="${mapUrl(g)}" target="_blank" rel="
 async function withLocation(btn) {
   const t = btn.textContent; btn.disabled = true; btn.textContent = 'Buscando ubicación…';
   try { return await getLocation(); } catch (e) { toast(e.message, 5000); return null; } finally { btn.disabled = false; btn.textContent = t; }
+}
+
+// Segundo paso del envío: un toque más para compartir los videos (el teléfono exige un toque por envío).
+function sendVideosStep(videos, title) {
+  return new Promise(resolve => {
+    const d = document.createElement('dialog');
+    d.className = 'sheet actions';
+    d.innerHTML = `<form method="dialog"><h2>Ahora envía ${videos.length === 1 ? 'el video' : `los ${videos.length} videos`}</h2>
+      <p class="muted small">${videos.map(v => esc(v.name)).join('<br>')}</p>
+      <button type="button" class="wide primary" id="sv">🎥 Enviar ${videos.length === 1 ? 'video' : 'videos'}</button>
+      <button value="" class="wide ghost">Ahora no</button></form>`;
+    document.body.appendChild(d);
+    $('#sv', d).onclick = async () => {
+      if (navigator.canShare && navigator.canShare({ files: videos })) {
+        try { await navigator.share({ files: videos, title }); } catch (err) { /* cancelado */ }
+      } else videos.forEach(v => download(v, v.name));
+      d.close();
+    };
+    d.addEventListener('close', () => { d.remove(); resolve(); });
+    d.showModal();
+  });
 }
 
 function download(blob, name) {
@@ -551,8 +575,7 @@ async function viewReport(id) {
       ${simple && r.geo ? mapEmbed(r.geo) : ''}
       <div class="muted">${nPhotos} fotos · ${nVideos} videos${r.coverPhoto ? ' · con foto de portada' : ''}</div>
       <div class="row wrap">
-        <button class="primary" id="pdf">📄 PDF</button>
-        ${nVideos ? '<button class="primary alt" id="send">📤 PDF + videos</button>' : ''}
+        <button class="primary" id="pdf">📤 Enviar PDF${nVideos ? ' + videos' : ''}</button>
         <button id="coverbtn">🖼 Portada</button>
         <button id="here">📍 Ubicación</button>
         <button id="settings">⚙️ Ajustes</button>
@@ -666,19 +689,14 @@ async function viewReport(id) {
     items: [...items].sort((a, b) => a.order - b.order).map(i => (i.entryId in entryCap ? { ...i, caption: entryCap[i.entryId] } : i)) });
   const busy = async (btn, fn) => { btn.disabled = true; const t = btn.textContent; btn.textContent = 'Generando…'; try { await fn(); } catch (e) { console.error(e); toast('Error: ' + e.message, 5000); } btn.disabled = false; btn.textContent = t; };
   const base = Exporter.slug(r.title) || 'reporte';
+  // Enviar: primero el PDF y, si hay videos, después los videos como archivos aparte
+  // (WhatsApp no acepta PDF y video en el mismo envío, por eso van en dos pasos).
   $('#pdf').onclick = e => busy(e.target, async () => {
-    const { pdf } = await Exporter.buildPdf(await exportData());
-    await shareOrDownload(pdf, `${base}.pdf`, r.title);
-  });
-  // PDF con las fotos + los videos como archivos aparte, enviados juntos (WhatsApp, correo…).
-  if ($('#send')) $('#send').onclick = e => busy(e.target, async () => {
     const data = await exportData();
     const { pdf } = await Exporter.buildPdf(data);
-    const files = [new File([pdf], `${base}.pdf`, { type: 'application/pdf' }), ...Exporter.videoFilesFor(data.items)];
-    if (navigator.canShare && navigator.canShare({ files })) {
-      try { await navigator.share({ files, title: r.title }); return; } catch (err) { if (err.name === 'AbortError') return; }
-    }
-    files.forEach(f => download(f, f.name));
+    const videos = Exporter.videoFilesFor(data.items, c?.name || r.title);
+    await shareOrDownload(pdf, `${base}.pdf`, r.title);
+    if (videos.length) await sendVideosStep(videos, r.title);
   });
   $('#coverbtn').onclick = async () => {
     const opts = [['take', '📷 Tomar foto'], ['pick', '🖼 Elegir de galería']];
@@ -802,7 +820,11 @@ function bindSimpleReport(r, items) {
       return;
     }
     const f = await v.files;
-    if (f.length) { if (v.action === 'gallery') toast('Importando…'); await addMedia(r, sid, f, extra); route(); }
+    if (!f.length) return;
+    if (v.action === 'gallery') toast('Importando…');
+    const ids = await addMedia(r, sid, f, extra);
+    // Foto o video: directo a escribir descripción y nota / medida.
+    if (ids.length === 1) location.hash = `#/i/${ids[0]}`; else route();
   };
   view.querySelectorAll('[data-emenu]').forEach(b => b.onclick = async () => {
     const e = r.entries.find(x => x.id === b.dataset.emenu);
