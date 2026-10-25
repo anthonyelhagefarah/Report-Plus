@@ -8,7 +8,7 @@ const fmtDate = t => new Date(t).toLocaleDateString('es', { day: '2-digit', mont
 const fmtDur = s => s ? `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}` : '';
 
 const SECTION_TEMPLATES = {
-  'Vivienda': ['Fachada', 'Sala', 'Cocina', 'Baños', 'Dormitorios', 'Techo', 'Exteriores'],
+  'Vivienda': ['Fachada', 'Sala', 'Comedor', 'Cocina', 'Habitaciones', 'Baños', 'Techo', 'Exteriores'],
   'Obra / construcción': ['Avance general', 'Estructura', 'Instalaciones eléctricas', 'Instalaciones sanitarias', 'Acabados', 'Pendientes'],
   'Daños / seguro': ['Vista general', 'Daños detectados', 'Detalle de daños', 'Medidas', 'Causa probable'],
   'Mantenimiento': ['Antes', 'Durante', 'Después'],
@@ -314,6 +314,7 @@ function quickCreateForm() {
       <div id="qgeo" class="muted small"></div>
       <label>Nombre del residencial<input name="residential"></label>
       <label>Teléfono<input name="phone" type="tel"></label>
+      <label>Áreas del reporte<select name="tpl">${Object.keys(SECTION_TEMPLATES).map(k => `<option value="${k}">${k}: ${SECTION_TEMPLATES[k].slice(0, 4).join(', ')}…</option>`).join('')}<option value="">Una sola área (General)</option></select></label>
       <div class="row end"><button value="cancel" formnovalidate>Cancelar</button><button value="ok" class="primary">Crear</button></div>
     </form>`;
     document.body.appendChild(d);
@@ -328,7 +329,7 @@ function quickCreateForm() {
     d.addEventListener('close', () => {
       const ok = d.returnValue === 'ok';
       const out = {};
-      if (ok) ['name', 'address', 'residential', 'phone'].forEach(k => { out[k] = d.querySelector(`[name=${k}]`).value.trim(); });
+      if (ok) ['name', 'address', 'residential', 'phone', 'tpl'].forEach(k => { out[k] = d.querySelector(`[name=${k}]`).value.trim(); });
       d.remove();
       resolve(ok ? { ...out, geo } : null);
     });
@@ -368,6 +369,7 @@ async function viewHome() {
     const c = { id: DB.uid(), name: v.name, address: v.address, residential: v.residential, phone: v.phone, geo: v.geo || undefined, createdAt: Date.now(), updatedAt: Date.now() };
     await DB.put('clients', c);
     const r = newReport(c.id, { title: v.name, location: v.address, geo: v.geo || undefined });
+    if (SECTION_TEMPLATES[v.tpl]) r.sections = SECTION_TEMPLATES[v.tpl].map(t => ({ id: DB.uid(), title: t, text: '' }));
     await DB.put('reports', r);
     location.hash = `#/r/${r.id}`;
   };
