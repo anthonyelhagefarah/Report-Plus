@@ -106,3 +106,14 @@ textarea.autogrow { resize: none; overflow: hidden; min-height: 44px; }
 .viewer img { max-width: 100%; max-height: 100%; transform-origin: center center; user-select: none; -webkit-user-select: none; will-change: transform; }
 .viewer-close { position: absolute; top: calc(env(safe-area-inset-top) + 10px); right: 12px; background: rgba(255,255,255,.15); color: #fff; border: 0; font-size: 20px; width: 44px; height: 44px; border-radius: 50%; }
 .viewer-hint { position: absolute; bottom: calc(env(safe-area-inset-bottom) + 16px); color: #bbb; font-size: 13px; pointer-events: none; }
+
+/* Selector de modo */
+.modes { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 4px; gap: 4px; margin: 4px 0 8px; }
+.modes button { border: 0; background: transparent; font-weight: 600; color: var(--muted); }
+.modes button.on { background: var(--accent); color: #fff; }
+.row.inline { margin: 4px 0 0; }
+.row.inline input { margin: 0; }
+.row.inline button { padding: 10px 14px; }
+.small { font-size: 13px; }
+.list small + small { margin-top: 1px; }
+.toolbar button { white-space: nowrap; }

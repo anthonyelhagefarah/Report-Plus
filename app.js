@@ -287,11 +287,98 @@ function openViewer(blob) {
 }
 
 // ---------- Vistas ----------
+// Modo simple: inicio con buscador, Crear y todos los reportes. Modo detallado: clientes → reportes.
+const getMode = () => { try { return localStorage.getItem('rp-mode') || 'simple'; } catch (e) { return 'simple'; } };
+const setMode = m => { try { localStorage.setItem('rp-mode', m); } catch (e) { /* sin almacenamiento */ } };
+const modeSwitch = () => `<div class="modes">${[['simple', 'Modo simple'], ['detallado', 'Modo detallado']].map(([m, t]) => `<button data-mode="${m}" class="${getMode() === m ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+function bindModeSwitch() {
+  view.querySelectorAll('[data-mode]').forEach(b => { b.onclick = () => { setMode(b.dataset.mode); route(); }; });
+}
+
+function newReport(clientId, fields) {
+  return {
+    id: DB.uid(), clientId, date: Date.now(), notes: '',
+    sections: [{ id: DB.uid(), title: 'General', text: '' }],
+    layout: { orientation: 'portrait', cols: 2, rows: 3 }, cover: true, coverImage: true, ...fields,
+  };
+}
+
+// Formulario de creación rápida con botón de ubicación en el mismo formulario.
+function quickCreateForm() {
+  return new Promise(resolve => {
+    const d = document.createElement('dialog');
+    d.className = 'sheet';
+    d.innerHTML = `<form method="dialog"><h2>Nuevo reporte</h2>
+      <label>Nombre del cliente<input name="name" required></label>
+      <label>Dirección<div class="row inline"><input name="address" class="grow"><button type="button" id="qgps" class="primary" title="Usar mi ubicación">📍</button></div></label>
+      <div id="qgeo" class="muted small"></div>
+      <label>Nombre del residencial<input name="residential"></label>
+      <label>Teléfono<input name="phone" type="tel"></label>
+      <div class="row end"><button value="cancel" formnovalidate>Cancelar</button><button value="ok" class="primary">Crear</button></div>
+    </form>`;
+    document.body.appendChild(d);
+    let geo = null;
+    $('#qgps', d).onclick = async e => {
+      const g = await withLocation(e.currentTarget); if (!g) return;
+      geo = g;
+      d.querySelector('[name=address]').value = g.address;
+      if (g.residential && !d.querySelector('[name=residential]').value) d.querySelector('[name=residential]').value = g.residential;
+      $('#qgeo', d).textContent = `🛰 GPS guardado: ${g.lat}, ${g.lng} (±${g.accuracy} m)`;
+    };
+    d.addEventListener('close', () => {
+      const ok = d.returnValue === 'ok';
+      const out = {};
+      if (ok) ['name', 'address', 'residential', 'phone'].forEach(k => { out[k] = d.querySelector(`[name=${k}]`).value.trim(); });
+      d.remove();
+      resolve(ok ? { ...out, geo } : null);
+    });
+    d.showModal();
+  });
+}
+
+async function viewHome() {
+  setHeader('Report Plus');
+  const reports = (await DB.all('reports')).sort((a, b) => b.date - a.date);
+  const clients = Object.fromEntries((await DB.all('clients')).map(c => [c.id, c]));
+  view.innerHTML = `
+    ${modeSwitch()}
+    <div class="toolbar"><input type="search" id="q" placeholder="Buscar cliente o dirección…"><button class="primary" id="add">+ Crear</button></div>
+    <ul class="list" id="list">
+      ${reports.map(r => {
+        const c = clients[r.clientId] || {};
+        const name = c.name || r.title;
+        const search = [name, r.title, r.location, c.address, c.residential, c.phone].filter(Boolean).join(' ').toLowerCase();
+        return `<li data-name="${esc(search)}"><a href="#/r/${r.id}">
+          <div class="avatar">${esc((name || '?').slice(0, 1).toUpperCase())}</div>
+          <div class="grow"><b>${esc(name)}</b>${r.title && r.title !== name ? ` <span class="muted">· ${esc(r.title)}</span>` : ''}
+            <small>${esc([r.location || c.address, c.residential].filter(Boolean).join(' · '))}</small>
+            <small>${fmtDate(r.date)}${r.geo || c.geo ? ' · 🛰 GPS' : ''}</small></div>
+          <span class="chev">›</span></a></li>`;
+      }).join('')}
+    </ul>
+    ${reports.length ? '' : `<div class="empty"><p>Aún no tienes reportes.</p><p>Pulsa <b>+ Crear</b> para empezar.</p></div>`}`;
+  bindModeSwitch();
+  $('#q').oninput = e => {
+    const q = e.target.value.toLowerCase();
+    view.querySelectorAll('#list li').forEach(li => { li.hidden = !li.dataset.name.includes(q); });
+  };
+  $('#add').onclick = async () => {
+    const v = await quickCreateForm();
+    if (!v || !v.name) return;
+    const c = { id: DB.uid(), name: v.name, address: v.address, residential: v.residential, phone: v.phone, geo: v.geo || undefined, createdAt: Date.now(), updatedAt: Date.now() };
+    await DB.put('clients', c);
+    const r = newReport(c.id, { title: v.name, location: v.address, geo: v.geo || undefined });
+    await DB.put('reports', r);
+    location.hash = `#/r/${r.id}`;
+  };
+}
+
 async function viewClients() {
   setHeader('Clientes');
   const clients = (await DB.all('clients')).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   const reports = await DB.all('reports');
   view.innerHTML = `
+    ${modeSwitch()}
     <div class="toolbar"><input type="search" id="q" placeholder="Buscar cliente…"><button class="primary" id="add">+ Cliente</button></div>
     <ul class="list" id="list">
       ${clients.map(c => `<li data-name="${esc(c.name.toLowerCase())}"><a href="#/c/${c.id}">
@@ -300,6 +387,7 @@ async function viewClients() {
         <span class="badge">${reports.filter(r => r.clientId === c.id).length}</span></a></li>`).join('')}
     </ul>
     ${clients.length ? '' : `<div class="empty"><p>Aún no tienes clientes.</p><p>Crea uno para empezar tu primer reporte con fotos y videos.</p></div>`}`;
+  bindModeSwitch();
   $('#q').oninput = e => {
     const q = e.target.value.toLowerCase();
     view.querySelectorAll('#list li').forEach(li => { li.hidden = !li.dataset.name.includes(q); });
@@ -386,7 +474,8 @@ async function viewReport(id) {
   const r = await DB.get('reports', id);
   if (!r) return (location.hash = '#/');
   const c = await DB.get('clients', r.clientId);
-  setHeader(r.title, `#/c/${r.clientId}`);
+  const simple = getMode() === 'simple';
+  setHeader(r.title, simple ? '#/' : `#/c/${r.clientId}`);
   const items = (await DB.byIndex('items', 'reportId', id)).sort((a, b) => a.order - b.order);
   const nPhotos = items.filter(i => i.type === 'photo').length, nVideos = items.length - nPhotos;
   const L = r.layout;
@@ -478,7 +567,14 @@ async function viewReport(id) {
     await DB.put('reports', r); toast('Ubicación guardada en el reporte'); route();
   };
   $('#settings').onclick = async () => {
+    const clientPart = simple && c ? [
+      { name: 'cname', label: 'Nombre del cliente', value: c.name, required: true },
+      { name: 'caddress', label: 'Dirección', value: c.address },
+      { name: 'cresidential', label: 'Nombre del residencial', value: c.residential },
+      { name: 'cphone', label: 'Teléfono', value: c.phone, type: 'tel' },
+    ] : [];
     const v = await form('Ajustes del reporte', [
+      ...clientPart,
       { name: 'title', label: 'Título', value: r.title, required: true },
       { name: 'location', label: 'Ubicación', value: r.location },
       { name: 'date', label: 'Fecha', type: 'date', value: new Date(r.date).toISOString().slice(0, 10) },
@@ -493,6 +589,12 @@ async function viewReport(id) {
       title: v.title, location: v.location, notes: v.notes, cover: v.cover, coverImage: v.coverImage,
       date: v.date ? new Date(v.date + 'T12:00').getTime() : r.date, layout: { orientation, cols: +cols, rows: +rows },
     });
+    if (clientPart.length) {
+      const oldName = c.name;
+      Object.assign(c, { name: v.cname, address: v.caddress, residential: v.cresidential, phone: v.cphone, updatedAt: Date.now() });
+      if (r.title === oldName) r.title = c.name;
+      await DB.put('clients', c);
+    }
     await DB.put('reports', r); route();
   };
 
@@ -524,7 +626,7 @@ async function viewReport(id) {
       location.hash = `#/r/${copy.id}`;
     }
     if (v.act === 'del' && confirm('¿Eliminar este reporte con todas sus fotos y videos?')) {
-      await DB.deleteReport(id); location.hash = `#/c/${r.clientId}`;
+      await DB.deleteReport(id); location.hash = simple ? '#/' : `#/c/${r.clientId}`;
     }
   };
 }
@@ -697,7 +799,8 @@ async function route() {
     else if (kind === 'r') await viewReport(id);
     else if (kind === 'i') await viewItem(id);
     else if (kind === 'settings') await viewSettings();
-    else await viewClients();
+    else if (kind === 'clientes' || getMode() === 'detallado') await viewClients();
+    else await viewHome();
   } catch (e) { console.error(e); view.innerHTML = `<div class="empty">Error: ${esc(e.message)}</div>`; }
   window.scrollTo(0, 0);
 }
