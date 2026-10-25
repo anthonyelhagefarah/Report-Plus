@@ -379,6 +379,39 @@ function actionSheet(title, options) {
     d.showModal();
   });
 }
+// Plan gratis: 10 reportes creados; Pro = sin límite. Borrar un reporte no devuelve uno gratis.
+const FREE_LIMIT = 10;
+async function getPlan() {
+  const p = await DB.get('settings', 'plan');
+  return p || { created: (await DB.all('reports')).length, pro: false };
+}
+const savePlan = p => DB.put('settings', p, 'plan');
+
+function proSheet() {
+  return new Promise(resolve => {
+    const d = document.createElement('dialog');
+    d.className = 'sheet actions pro';
+    d.innerHTML = `<form method="dialog">
+      <div class="pro-badge">${ic('report')}</div>
+      <h2>Report Plus Pro</h2>
+      <p class="muted">${tr('Ya usaste tus {n} reportes gratis.', { n: FREE_LIMIT })}</p>
+      <ul class="pro-list">
+        <li>${tr('Reportes sin límite')}</li>
+        <li>${tr('Tus reportes de antes siguen abiertos')}</li>
+      </ul>
+      <button type="button" class="wide primary" id="buy">${tr('Desbloquear Pro')}</button>
+      <button type="button" class="wide ghost small" id="restore">${tr('Restaurar compra')}</button>
+      <button value="" class="wide ghost">${tr('Ahora no')}</button></form>`;
+    document.body.appendChild(d);
+    // Demo: el pago real se conecta con Apple / Google en la app de la tienda.
+    const soon = () => toast(tr('El pago estará disponible en la app del App Store.'), 3500);
+    $('#buy', d).onclick = soon;
+    $('#restore', d).onclick = soon;
+    d.addEventListener('close', () => { d.remove(); resolve(); });
+    d.showModal();
+  });
+}
+
 const getFolders = async () => (await DB.get('settings', 'folders')) || [];
 const saveFolders = f => DB.put('settings', f, 'folders');
 const fmtWhen = t => new Date(t).toLocaleString(I18N.lang, { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -400,6 +433,8 @@ async function viewHome(folderId) {
     const l = label(r);
     return `<li data-name="${esc(l.search)}" data-report="${r.id}" ${hidden ? 'hidden' : ''}><a href="#/r/${r.id}"><span class="ico">${ic('report')}</span><div class="grow"><b>${esc(l.text)}</b></div></a><button class="kebab" data-menu="${r.id}" aria-label="${tr('Opciones')}">⋮</button></li>`;
   };
+  const plan = await getPlan();
+  const left = plan.pro ? Infinity : FREE_LIMIT - plan.created;
   view.innerHTML = `
     ${folder ? '' : modeSwitch()}
     <div class="toolbar"><input type="search" id="q" placeholder="${tr('Buscar cliente o dirección…')}"></div>
@@ -409,6 +444,7 @@ async function viewHome(folderId) {
       ${folder ? '' : all.filter(r => r.folderId).map(r => reportRow(r, true).replace('<li ', '<li data-infolder ')).join('')}
     </ul>
     ${reports.length || (!folder && folders.length) ? '' : `<div class="empty"><p>${tr(folder ? 'Carpeta vacía.' : 'Aún no tienes clientes.')}</p><p>${tr('Pulsa <b>+</b> para crear uno y empezar a tomar fotos.')}</p></div>`}
+    ${left > 0 && left <= 3 ? `<p class="muted small center">${tr(left === 1 ? 'Te queda 1 reporte gratis' : 'Te quedan {n} reportes gratis', { n: left })}</p>` : ''}
     ${folder ? '' : `<button class="ghost wide" id="newfolder">${ic('folder')} ${tr('Nueva carpeta')}</button>`}
     <button class="fab" id="add" aria-label="${tr('Crear cliente')}">${ic('plus')}</button>`;
   if (!folder) bindModeSwitch();
@@ -420,6 +456,8 @@ async function viewHome(folderId) {
     });
   };
   const createReport = async () => {
+    const plan = await getPlan();
+    if (!plan.pro && plan.created >= FREE_LIMIT) return proSheet();
     const v = await quickCreateForm();
     if (!v || !v.name) return;
     const c = { id: DB.uid(), name: v.name, address: v.address, residential: v.residential, phone: v.phone, email: v.email, notes: v.notes, geo: v.geo || undefined, createdAt: Date.now(), updatedAt: Date.now() };
@@ -427,6 +465,7 @@ async function viewHome(folderId) {
     const r = newReport(c.id, { title: v.name, location: v.address, geo: v.geo || undefined, folderId: folder ? folder.id : undefined, coverPhoto: v.cover || undefined });
     if (SECTION_TEMPLATES[v.tpl]) r.sections = SECTION_TEMPLATES[v.tpl].map(t => ({ id: DB.uid(), title: t, text: '' }));
     await DB.put('reports', r);
+    plan.created++; await savePlan(plan);
     location.hash = `#/r/${r.id}`;
   };
   $('#add').onclick = createReport;

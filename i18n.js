@@ -4,6 +4,14 @@ const I18N = (() => {
   const LANGS = [['es', 'Español'], ['en', 'English'], ['fr', 'Français']];
   const DICT = {
     en: {
+      'Ya usaste tus {n} reportes gratis.': 'You have used your {n} free reports.',
+      'Reportes sin límite': 'Unlimited reports',
+      'Tus reportes de antes siguen abiertos': 'Your earlier reports stay open',
+      'Desbloquear Pro': 'Unlock Pro',
+      'Restaurar compra': 'Restore purchase',
+      'El pago estará disponible en la app del App Store.': 'Payment will be available in the App Store app.',
+      'Te queda 1 reporte gratis': '1 free report left',
+      'Te quedan {n} reportes gratis': '{n} free reports left',
       'Abrir en Google Maps': 'Open in Google Maps',
       'Abrir': 'Open',
       'Acción': 'Action',
@@ -192,6 +200,14 @@ const I18N = (() => {
       'Área': 'Area',
     },
     fr: {
+      'Ya usaste tus {n} reportes gratis.': 'Vous avez utilisé vos {n} rapports gratuits.',
+      'Reportes sin límite': 'Rapports illimités',
+      'Tus reportes de antes siguen abiertos': 'Vos rapports précédents restent ouverts',
+      'Desbloquear Pro': 'Débloquer Pro',
+      'Restaurar compra': 'Restaurer l\'achat',
+      'El pago estará disponible en la app del App Store.': 'Le paiement sera disponible dans l\'app de l\'App Store.',
+      'Te queda 1 reporte gratis': 'Il vous reste 1 rapport gratuit',
+      'Te quedan {n} reportes gratis': 'Il vous reste {n} rapports gratuits',
       'Abrir en Google Maps': 'Ouvrir dans Google Maps',
       'Abrir': 'Ouvrir',
       'Acción': 'Action',

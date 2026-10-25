@@ -176,3 +176,12 @@ main:has(#newItem) { padding-bottom: calc(env(safe-area-inset-bottom) + 150px); 
 .abadge .i, .viewer-close .i { vertical-align: middle; }
 .viewer-close .i { width: 26px; height: 26px; }
 .annot-tools b .i { width: 22px; height: 22px; }
+
+/* Pantalla Pro (después de 10 reportes gratis) */
+.center { text-align: center; }
+dialog.pro { text-align: center; }
+.pro-badge { width: 56px; height: 56px; margin: 4px auto 10px; border-radius: 16px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); }
+.pro-badge svg { width: 30px; height: 30px; }
+.pro-list { list-style: none; padding: 0; margin: 12px 0 16px; text-align: left; }
+.pro-list li { padding: 8px 0 8px 28px; position: relative; border-bottom: 1px solid var(--line, #eee); }
+.pro-list li::before { content: '✓'; position: absolute; left: 4px; color: var(--accent); font-weight: 700; }
