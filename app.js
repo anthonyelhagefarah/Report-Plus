@@ -718,7 +718,7 @@ function newItemSheet(r) {
     d.className = 'sheet';
     const area = currentArea[r.id];
     d.innerHTML = `<form method="dialog"><h2>Agregar</h2>
-      <label>Área<select name="area">${r.sections.map(s => `<option value="${s.id}" ${s.id === area ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}<option value="__new">➕ Nueva área…</option></select></label>
+      <label>Área<select name="area"><option value="__new">➕ Crear área…</option>${r.sections.map(s => `<option value="${s.id}" ${s.id === area ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}</select></label>
       <label>Descripción<textarea name="caption" class="autogrow" rows="1" placeholder="Ej. Oficina"></textarea></label>
       <label>Medida <small>(una por línea)</small><textarea name="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36"></textarea></label>
       <div class="cap-btns">
@@ -734,12 +734,12 @@ function newItemSheet(r) {
     const sel = d.querySelector('[name=area]');
     sel.onchange = async () => {
       if (sel.value !== '__new') return;
-      const t = (prompt('Nombre de la nueva área (ej. Habitación 2, Balcón):') || '').trim();
+      const t = (prompt('Nombre del área (ej. Habitación 2, Balcón):') || '').trim();
       if (!t) { sel.value = currentArea[r.id]; return; }
       const s = { id: DB.uid(), title: t, text: '' };
       r.sections.push(s);
       await DB.put('reports', r);
-      sel.querySelector('option[value="__new"]').insertAdjacentHTML('beforebegin', `<option value="${s.id}">${esc(t)}</option>`);
+      sel.querySelector('option[value="__new"]').insertAdjacentHTML('afterend', `<option value="${s.id}">${esc(t)}</option>`);
       sel.value = s.id;
     };
     let result = null;
