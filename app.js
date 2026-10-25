@@ -92,12 +92,12 @@ function videoThumb(blob) {
   });
 }
 
-async function addMedia(report, sectionId, files) {
+async function addMedia(report, sectionId, files, extra = {}) {
   const existing = await DB.byIndex('items', 'reportId', report.id);
   let order = existing.length;
   for (const f of files) {
     const isVideo = f.type.startsWith('video');
-    const item = { id: DB.uid(), reportId: report.id, sectionId, type: isVideo ? 'video' : 'photo', blob: f, caption: '', measure: '', shapes: [], order: order++, createdAt: Date.now() };
+    const item = { id: DB.uid(), reportId: report.id, sectionId, type: isVideo ? 'video' : 'photo', blob: f, caption: '', measure: '', shapes: [], order: order++, createdAt: Date.now(), ...extra };
     if (isVideo) Object.assign(item, await videoThumb(f));
     await DB.put('items', item);
   }
@@ -707,40 +707,68 @@ function simpleReportBody(r, items) {
     ${groups.length ? groups.map(([s, its]) => `
       ${multi ? `<h3 class="area-head">${esc(s.title)} <small>(${its.length})</small></h3>` : ''}
       <ul class="ilist">${its.map(row).join('')}</ul>`).join('')
-    : '<div class="empty"><p>Todavía no hay fotos ni videos.</p><p>Usa los botones de abajo para empezar.</p></div>'}
-    <div class="capture-bar">
-      <label class="area-pick">Área <select id="area">${r.sections.map(s => `<option value="${s.id}" ${s.id === area ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}<option value="__new">➕ Nueva área…</option></select></label>
+    : '<div class="empty"><p>Todavía no hay fotos ni videos.</p><p>Pulsa <b>+</b> para agregar fotos o videos.</p></div>'}
+    <button class="fab" id="newItem" aria-label="Agregar foto o video">+</button>`;
+}
+
+// Ventana del botón +: área, descripción, medida y cómo capturar.
+function newItemSheet(r) {
+  return new Promise(resolve => {
+    const d = document.createElement('dialog');
+    d.className = 'sheet';
+    const area = currentArea[r.id];
+    d.innerHTML = `<form method="dialog"><h2>Agregar</h2>
+      <label>Área<select name="area">${r.sections.map(s => `<option value="${s.id}" ${s.id === area ? 'selected' : ''}>${esc(s.title)}</option>`).join('')}<option value="__new">➕ Nueva área…</option></select></label>
+      <label>Descripción<textarea name="caption" class="autogrow" rows="1" placeholder="Ej. Oficina"></textarea></label>
+      <label>Medida <small>(una por línea)</small><textarea name="measure" class="autogrow" rows="3" placeholder="Ej. 36 x 48&#10;Ventana 24 x 36"></textarea></label>
       <div class="cap-btns">
-        <button data-a="cam">📸<small>Ráfaga</small></button>
-        <button data-a="photo">📷<small>Foto</small></button>
-        <button data-a="video">🎥<small>Video</small></button>
-        <button data-a="gallery">🖼<small>Galería</small></button>
+        <button type="button" data-a="cam">📸<small>Ráfaga</small></button>
+        <button type="button" data-a="photo">📷<small>Foto</small></button>
+        <button type="button" data-a="video">🎥<small>Video</small></button>
+        <button type="button" data-a="gallery">🖼<small>Galería</small></button>
       </div>
-    </div>`;
+      <div class="row end"><button value="cancel" formnovalidate>Cancelar</button></div>
+    </form>`;
+    document.body.appendChild(d);
+    d.querySelectorAll('textarea.autogrow').forEach(el => el.addEventListener('input', () => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; }));
+    const sel = d.querySelector('[name=area]');
+    sel.onchange = async () => {
+      if (sel.value !== '__new') return;
+      const t = (prompt('Nombre de la nueva área (ej. Habitación 2, Balcón):') || '').trim();
+      if (!t) { sel.value = currentArea[r.id]; return; }
+      const s = { id: DB.uid(), title: t, text: '' };
+      r.sections.push(s);
+      await DB.put('reports', r);
+      sel.querySelector('option[value="__new"]').insertAdjacentHTML('beforebegin', `<option value="${s.id}">${esc(t)}</option>`);
+      sel.value = s.id;
+    };
+    let result = null;
+    d.querySelector('.cap-btns').addEventListener('click', e => {
+      const b = e.target.closest('button[data-a]'); if (!b || sel.value === '__new') return;
+      const action = b.dataset.a;
+      // El selector de archivos se abre aquí mismo, dentro del toque, para que iPhone lo permita.
+      const files = action === 'photo' ? pickFiles('image/*', { capture: true })
+        : action === 'video' ? pickFiles('video/*', { capture: true })
+        : action === 'gallery' ? pickFiles('image/*,video/*', { multiple: true }) : null;
+      result = { action, files, sectionId: sel.value, caption: d.querySelector('[name=caption]').value.trim(), measure: d.querySelector('[name=measure]').value.trim() };
+      d.close();
+    });
+    d.addEventListener('close', () => { d.remove(); resolve(result); });
+    d.showModal();
+  });
 }
 
 function bindSimpleReport(r, items) {
-  const sel = $('#area');
-  sel.onchange = async () => {
-    if (sel.value !== '__new') { currentArea[r.id] = sel.value; return; }
-    const v = await form('Nueva área', [{ name: 'title', label: 'Nombre (ej. Habitación 2, Balcón)', value: '', required: true }], 'Agregar');
-    if (v && v.title) {
-      const s = { id: DB.uid(), title: v.title, text: '' };
-      r.sections.push(s); currentArea[r.id] = s.id;
-      await DB.put('reports', r);
-    }
-    route();
+  $('#newItem').onclick = async () => {
+    const v = await newItemSheet(r);
+    if (!v) return;
+    currentArea[r.id] = v.sectionId;
+    const extra = { caption: v.caption, measure: v.measure };
+    const sid = v.sectionId;
+    if (v.action === 'cam') { await openCamera(f => addMedia(r, sid, [f], extra)); return route(); }
+    const f = await v.files;
+    if (f.length) { if (v.action === 'gallery') toast('Importando…'); await addMedia(r, sid, f, extra); route(); }
   };
-  $('.capture-bar').addEventListener('click', async e => {
-    const b = e.target.closest('button[data-a]'); if (!b) return;
-    const sid = currentArea[r.id];
-    const a = b.dataset.a;
-    if (a === 'cam') { await openCamera(f => addMedia(r, sid, [f])); return route(); }
-    const f = a === 'photo' ? await pickFiles('image/*', { capture: true })
-      : a === 'video' ? await pickFiles('video/*', { capture: true })
-      : await pickFiles('image/*,video/*', { multiple: true });
-    if (f.length) { if (a === 'gallery') toast('Importando…'); await addMedia(r, sid, f); route(); }
-  });
   view.querySelectorAll('[data-imenu]').forEach(b => b.onclick = async () => {
     const it = items.find(x => x.id === b.dataset.imenu);
     const opts = [['open', 'Abrir'], ...(r.sections.length > 1 ? [['area', 'Cambiar de área']] : []), ['del', '🗑 Eliminar', 'danger']];

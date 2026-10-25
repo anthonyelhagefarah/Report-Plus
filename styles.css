@@ -138,7 +138,7 @@ dialog.actions h2 { margin-bottom: 4px; font-size: 16px; }
 .ithumb img { width: 100%; height: 100%; object-fit: cover; }
 .ithumb .vbadge { left: 3px; top: auto; bottom: 3px; font-size: 10px; }
 .itext { white-space: pre-line; font-size: 15px; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; }
-main:has(.capture-bar) { padding-bottom: calc(env(safe-area-inset-bottom) + 150px); }
+main:has(#newItem) { padding-bottom: calc(env(safe-area-inset-bottom) + 150px); }
 .capture-bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--surface); border-top: 1px solid var(--line); padding: 8px 12px calc(env(safe-area-inset-bottom) + 8px); box-shadow: 0 -4px 14px rgba(0,0,0,.12); }
 .area-pick { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
 .area-pick select { margin: 0; padding: 7px 10px; }
