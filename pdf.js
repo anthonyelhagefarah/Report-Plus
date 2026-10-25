@@ -45,8 +45,7 @@ const Exporter = (() => {
     const header = () => {
       doc.setFillColor(...accent); doc.rect(0, 0, W, 2, 'F');
       doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(40);
-      const addr = report.location || client.address;
-      doc.text(doc.splitTextToSize([client.name || report.title, addr].filter(Boolean).join(' - '), W - 2 * M - 50)[0], M, 9);
+      doc.text(doc.splitTextToSize([client.name || report.title, client.residential].filter(Boolean).join(' - '), W - 2 * M - 50)[0], M, 9);
       doc.setFont('helvetica', 'normal'); doc.setTextColor(110);
       if (company.name) doc.text(company.name, W - M, 9, { align: 'right' });
       doc.setDrawColor(220); doc.line(M, 11.5, W - M, 11.5);
