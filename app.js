@@ -387,7 +387,7 @@ function quickCreateForm() {
     d.className = 'sheet';
     d.innerHTML = `<form method="dialog"><h2>${tr('Nuevo cliente')}</h2>
       <label>${tr('Nombre del cliente')}<input name="name" required></label>
-      <label>${tr('Dirección')}<input name="address"></label>
+      <label>${tr('Sector / Descripción')}<input name="address"></label>
       <label>${tr('Nombre del residencial')}<input name="residential"></label>
       <label>${tr('Ubicación en el mapa')}</label>
       <button type="button" id="qgps" class="wide">${ic('pin')} ${tr('Guardar mi ubicación actual')}</button>
@@ -571,7 +571,7 @@ async function viewClients() {
 
 const clientFields = c => [
   { name: 'name', label: tr('Nombre'), value: c.name, required: true },
-  { name: 'address', label: tr('Dirección'), value: c.address },
+  { name: 'address', label: tr('Sector / Descripción'), value: c.address },
   { name: 'residential', label: tr('Nombre del residencial'), value: c.residential },
   { name: 'phone', label: tr('Teléfono'), value: c.phone, type: 'tel' },
   { name: 'email', label: tr('Correo'), value: c.email, type: 'email' },
@@ -735,7 +735,7 @@ async function viewReport(id) {
   $('#settings').onclick = async () => {
     const clientPart = simple && c ? [
       { name: 'cname', label: tr('Nombre del cliente'), value: c.name, required: true },
-      { name: 'caddress', label: tr('Dirección'), value: c.address },
+      { name: 'caddress', label: tr('Sector / Descripción'), value: c.address },
       { name: 'cresidential', label: tr('Nombre del residencial'), value: c.residential },
       { name: 'cphone', label: tr('Teléfono'), value: c.phone, type: 'tel' },
     ] : [];
