@@ -123,7 +123,7 @@ function getLocation() {
     }, err => reject(new Error(tr(err.code === 1 ? 'Permiso de ubicación denegado. Actívalo en los ajustes del navegador.' : 'No se pudo obtener la ubicación'))), { enableHighAccuracy: true, timeout: 20000, maximumAge: 30000 });
   });
 }
-const mapEmbed = g => { const k = 0.0025; return `<iframe class="map" loading="lazy" title="${tr('Mapa')}" src="https://www.openstreetmap.org/export/embed.html?bbox=${g.lng - k},${g.lat - k},${g.lng + k},${g.lat + k}&layer=mapnik&marker=${g.lat},${g.lng}"></iframe>`; };
+const mapEmbed = g => { if (!navigator.onLine) return `<div class="map map-off">${ic('pin')} ${tr('Mapa disponible con conexión')}</div>`; const k = 0.0025; return `<iframe class="map" loading="lazy" title="${tr('Mapa')}" src="https://www.openstreetmap.org/export/embed.html?bbox=${g.lng - k},${g.lat - k},${g.lng + k},${g.lat + k}&layer=mapnik&marker=${g.lat},${g.lng}"></iframe>`; };
 const mapUrl = g => `https://www.google.com/maps?q=${g.lat},${g.lng}`;
 const geoLine = g => g ? `<div>${ic('satellite')} <a href="${mapUrl(g)}" target="_blank" rel="noopener">${g.lat}, ${g.lng}</a> <small class="muted">(±${g.accuracy} m · ${tr('ver en mapa')})</small></div>` : '';
 
@@ -1149,6 +1149,7 @@ async function route() {
   urls.splice(0).forEach(u => URL.revokeObjectURL(u));
   $('#backBtn').setAttribute('aria-label', tr('Atrás'));
   $('#settingsBtn').setAttribute('aria-label', tr('Mi empresa'));
+  updateOnline();
   const [, kind, id, id2] = location.hash.split('/');
   try {
     if (kind === 'c') await viewClient(id);
@@ -1165,5 +1166,11 @@ async function route() {
 ['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault()));
 $('#settingsBtn').onclick = () => { location.hash = '#/settings'; };
 window.addEventListener('hashchange', route);
+// Aviso visible mientras no hay internet; todo se sigue guardando en el teléfono.
+const offlineBar = document.createElement('div');
+offlineBar.id = 'offline'; offlineBar.setAttribute('role', 'status');
+document.querySelector('.topbar').append(offlineBar);
+const updateOnline = () => { offlineBar.textContent = tr('Sin conexión: tus cambios se guardan en el teléfono'); offlineBar.hidden = navigator.onLine; };
+window.addEventListener('online', updateOnline); window.addEventListener('offline', updateOnline);
 route();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
