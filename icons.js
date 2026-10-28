@@ -14,6 +14,7 @@ const ICONS = {
   house: '<path d="M2.5 12L12 3.5l9.5 8.5"/><path d="M16 7.3V4.5h2.5v5"/><path d="M5 10v10.5h14V10"/><path d="M10 20.5V15h4v5.5"/>',
   grid: '<rect x="3.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.8"/>',
   lock: '<rect x="4" y="10.5" width="16" height="11" rx="1.5"/><path d="M7.5 10.5V7a4.5 4.5 0 0 1 9 0v3.5"/><circle cx="12" cy="15" r="1.4"/><path d="M12 16.4v2.4"/>',
+  forward: '<path d="M14 5l6 6-6 6"/><path d="M20 11h-9a7 7 0 0 0-7 7v1"/>',
   arrow: '<path d="M10.6 21h2.8V9.5h3.6L12 3.5 7 9.5h3.6z"/>',
   report: '<rect x="5" y="4.5" width="14" height="17" rx="1.5"/><path d="M9 4.5V3h6v1.5a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1zM8.5 10h7M8.5 13.5h7M8.5 17h4.5"/>',
   phone: '<path d="M5 3.5h3.5l1.6 4.4-2.2 1.4a11 11 0 0 0 6.8 6.8l1.4-2.2 4.4 1.6V19a1.5 1.5 0 0 1-1.6 1.5A16.5 16.5 0 0 1 3.5 5.1 1.5 1.5 0 0 1 5 3.5z"/>',

@@ -132,6 +132,63 @@ async function withLocation(btn) {
   try { return await getLocation(); } catch (e) { toast(e.message, 5000); return null; } finally { btn.disabled = false; btn.innerHTML = t; }
 }
 
+const busy = async (btn, fn) => { btn.disabled = true; const t = btn.innerHTML; btn.textContent = tr('Generando…'); try { await fn(); } catch (e) { console.error(e); toast(tr('Error:') + ' ' + (e?.message || tr('inténtalo de nuevo')), 5000); } btn.disabled = false; btn.innerHTML = t; };
+
+// Enviar: primero el PDF y, si hay videos, después los videos como archivos aparte
+// (WhatsApp no acepta PDF y video en el mismo envío, por eso van en dos pasos).
+async function sendReportPdf(r) {
+  const c = await DB.get('clients', r.clientId);
+  const items = (await DB.byIndex('items', 'reportId', r.id)).sort((a, b) => a.order - b.order);
+  const entryCap = Object.fromEntries((r.entries || []).map(e => [e.id, e.caption]));
+  const data = { company: await DB.getSettings(), client: c || {}, report: r, sections: r.sections,
+    items: items.map(i => (i.entryId in entryCap ? { ...i, caption: entryCap[i.entryId] } : i)) };
+  const { pdf } = await Exporter.buildPdf(data);
+  const videos = Exporter.videoFilesFor(data.items, c?.name || r.title);
+  await shareOrDownload(pdf, Exporter.pdfName(data.client, r), r.title);
+  if (videos.length) await sendVideosStep(videos, r.title);
+}
+
+// Deslizar una fila: hacia la izquierda aparece Borrar (rojo); hacia la derecha, Enviar (verde) si la fila lo tiene.
+let openSwipe = null;
+function swipeRow(li, { del, send }) {
+  const front = document.createElement('div');
+  front.className = 'swipe-front ' + li.className;
+  front.append(...li.childNodes);
+  li.className = 'swipe-wrap' + (front.classList.contains('irow') ? ' card-wrap' : '');
+  const W = 88;
+  li.insertAdjacentHTML('afterbegin', (send ? `<button class="swipe-act send" aria-label="${tr('Enviar')}">${ic('forward')}<small>${tr('Enviar')}</small></button>` : '')
+    + `<button class="swipe-act del" aria-label="${tr('Eliminar')}">${ic('trash')}<small>${tr('Eliminar')}</small></button>`);
+  li.appendChild(front);
+  let x0, y0, dx = 0, base = 0, drag = null;
+  const set = (x, anim) => { front.style.transition = anim ? 'transform .2s' : 'none'; front.style.transform = x ? `translateX(${x}px)` : ''; li.dataset.open = x < 0 ? 'del' : x > 0 ? 'send' : ''; };
+  const close = () => { set(0, true); base = 0; if (openSwipe === close) openSwipe = null; };
+  front.addEventListener('touchstart', e => {
+    if (openSwipe && openSwipe !== close) openSwipe();
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; drag = null;
+  }, { passive: true });
+  front.addEventListener('touchmove', e => {
+    const mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
+    if (drag === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) drag = Math.abs(mx) > Math.abs(my);
+    if (!drag) return;
+    e.preventDefault();
+    dx = Math.max(send ? -W * 1.5 : -W * 1.5, Math.min(send ? W * 1.5 : 0, base + mx));
+    set(dx);
+  }, { passive: false });
+  front.addEventListener('touchend', () => {
+    if (!drag) return;
+    base = dx < -W / 2 ? -W : (send && dx > W / 2) ? W : 0;
+    set(base, true);
+    openSwipe = base ? close : null;
+  });
+  // Con la fila abierta, tocarla solo la cierra (no abre el reporte).
+  front.addEventListener('click', e => { if (base) { e.preventDefault(); e.stopPropagation(); close(); } }, true);
+  li.querySelector('.swipe-act.del').onclick = async () => { close(); await del(); };
+  if (send) li.querySelector('.swipe-act.send').onclick = async () => {
+    close(); toast(tr('Generando…'));
+    try { await send(); } catch (e) { console.error(e); toast(tr('Error:') + ' ' + (e?.message || tr('inténtalo de nuevo')), 5000); }
+  };
+}
+
 // Segundo paso del envío: un toque más para compartir los videos (el teléfono exige un toque por envío).
 function sendVideosStep(videos, title) {
   return new Promise(resolve => {
@@ -463,6 +520,13 @@ async function viewHome(folderId) {
     if (a === 'out') { delete r.folderId; await DB.put('reports', r); route(); }
     if (a === 'del' && confirm(tr('¿Eliminar este reporte con todas sus fotos y videos?'))) { await DB.deleteReport(r.id); route(); }
   });
+  view.querySelectorAll('#list li[data-report]').forEach(li => {
+    const r = all.find(x => x.id === li.dataset.report);
+    swipeRow(li, {
+      del: async () => { if (confirm(tr('¿Eliminar este reporte con todas sus fotos y videos?'))) { await DB.deleteReport(r.id); route(); } },
+      send: () => sendReportPdf(r),
+    });
+  });
   view.querySelectorAll('[data-fmenu]').forEach(b => b.onclick = async () => {
     const f = folders.find(x => x.id === b.dataset.fmenu);
     const a = await actionSheet(f.name, [['rename', tr('Cambiar nombre')], ['del', tr('Eliminar carpeta (los reportes se conservan)'), 'danger', 'trash']]);
@@ -697,20 +761,8 @@ async function viewReport(id) {
     await DB.put('reports', r); route();
   };
 
-  const entryCap = Object.fromEntries((r.entries || []).map(e => [e.id, e.caption]));
-  const exportData = async () => ({ company: await DB.getSettings(), client: c || {}, report: r, sections: r.sections,
-    items: [...items].sort((a, b) => a.order - b.order).map(i => (i.entryId in entryCap ? { ...i, caption: entryCap[i.entryId] } : i)) });
-  const busy = async (btn, fn) => { btn.disabled = true; const t = btn.innerHTML; btn.textContent = tr('Generando…'); try { await fn(); } catch (e) { console.error(e); toast(tr('Error:') + ' ' + (e?.message || tr('inténtalo de nuevo')), 5000); } btn.disabled = false; btn.innerHTML = t; };
   const base = Exporter.slug(r.title) || tr('reporte');
-  // Enviar: primero el PDF y, si hay videos, después los videos como archivos aparte
-  // (WhatsApp no acepta PDF y video en el mismo envío, por eso van en dos pasos).
-  $('#pdf').onclick = e => busy(e.target, async () => {
-    const data = await exportData();
-    const { pdf } = await Exporter.buildPdf(data);
-    const videos = Exporter.videoFilesFor(data.items, c?.name || r.title);
-    await shareOrDownload(pdf, Exporter.pdfName(data.client, r), r.title);
-    if (videos.length) await sendVideosStep(videos, r.title);
-  });
+  $('#pdf').onclick = e => busy(e.target, () => sendReportPdf(r));
   $('#coverbtn').onclick = async () => {
     const opts = [['take', tr('Tomar foto'), '', 'camera', { accept: 'image/*', capture: true }], ['pick', tr('Elegir de galería'), '', 'gallery', { accept: 'image/*' }]];
     if (r.coverPhoto) opts.push(['see', tr('Ver portada actual'), '', 'eye'], ['del', tr('Quitar foto de portada'), 'danger']);
@@ -847,6 +899,21 @@ function bindSimpleReport(r, items) {
       for (const it of items.filter(i => i.entryId === e.id)) await DB.del('items', it.id);
       r.entries = r.entries.filter(x => x !== e); await DB.put('reports', r); route();
     }
+  });
+  view.querySelectorAll('.ilist > li').forEach(li => {
+    const eb = li.querySelector('[data-emenu]'), ib = li.querySelector('[data-imenu]');
+    swipeRow(li, { del: async () => {
+      if (eb) {
+        const e = r.entries.find(x => x.id === eb.dataset.emenu);
+        if (!confirm(tr('¿Eliminar esta ráfaga con todas sus fotos?'))) return;
+        for (const it of items.filter(i => i.entryId === e.id)) await DB.del('items', it.id);
+        r.entries = r.entries.filter(x => x !== e); await DB.put('reports', r);
+      } else if (ib) {
+        if (!confirm(tr('¿Eliminar este elemento?'))) return;
+        await DB.del('items', ib.dataset.imenu);
+      }
+      route();
+    } });
   });
   view.querySelectorAll('[data-imenu]').forEach(b => b.onclick = async () => {
     const it = items.find(x => x.id === b.dataset.imenu);
