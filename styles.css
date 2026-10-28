@@ -187,12 +187,13 @@ main:has(#newItem) { padding-bottom: calc(env(safe-area-inset-bottom) + 150px); 
 /* Deslizar filas para borrar / enviar */
 .swipe-wrap { position: relative; overflow: hidden; display: block !important; }
 .swipe-wrap.card-wrap { border-radius: var(--radius); }
-.swipe-front { position: relative; z-index: 1; background: var(--surface); touch-action: pan-y; }
+.swipe-front { position: relative; z-index: 1; background: var(--surface); touch-action: pan-y; will-change: transform; }
 .list .swipe-front { display: flex; align-items: center; }
 .list .swipe-front > a { flex: 1; min-width: 0; }
-.swipe-act { position: absolute; top: 0; bottom: 0; width: 88px; border: 0; border-radius: 0; padding: 0; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #fff; font-size: 12px; font-weight: 600; }
-.swipe-act .i { width: 26px; height: 26px; }
-.swipe-act small { color: #fff; font-size: 12px; }
-.swipe-act.del { right: 0; background: #e5483d; }
-.swipe-act.send { left: 0; background: #2fa84f; }
-.swipe-wrap[data-open=del] .swipe-act.del, .swipe-wrap[data-open=send] .swipe-act.send { display: flex; }
+.swipe-act { position: absolute; top: 0; bottom: 0; width: 0; border: 0; border-radius: 0; padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; color: #fff; -webkit-tap-highlight-color: transparent; }
+.swipe-act:active { filter: brightness(.92); }
+.swipe-in { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 92px; font-weight: 600; will-change: transform, opacity; }
+.swipe-act .i { width: 26px; height: 26px; stroke-width: 2; }
+.swipe-act small { color: #fff; font-size: 12px; letter-spacing: .2px; }
+.swipe-act.del { right: 0; background: linear-gradient(90deg, #ff5a4f, #e5372c); }
+.swipe-act.send { left: 0; background: linear-gradient(90deg, #2fb457, #26a14c); }

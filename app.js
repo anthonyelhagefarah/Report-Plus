@@ -155,38 +155,63 @@ function swipeRow(li, { del, send }) {
   front.className = 'swipe-front ' + li.className;
   front.append(...li.childNodes);
   li.className = 'swipe-wrap' + (front.classList.contains('irow') ? ' card-wrap' : '');
-  const W = 88;
-  li.insertAdjacentHTML('afterbegin', (send ? `<button class="swipe-act send" aria-label="${tr('Enviar')}">${ic('forward')}<small>${tr('Enviar')}</small></button>` : '')
-    + `<button class="swipe-act del" aria-label="${tr('Eliminar')}">${ic('trash')}<small>${tr('Eliminar')}</small></button>`);
+  const W = 92;
+  li.insertAdjacentHTML('afterbegin', (send ? `<button class="swipe-act send" aria-label="${tr('Enviar')}"><span class="swipe-in">${ic('forward')}<small>${tr('Enviar')}</small></span></button>` : '')
+    + `<button class="swipe-act del" aria-label="${tr('Eliminar')}"><span class="swipe-in">${ic('trash')}<small>${tr('Eliminar')}</small></span></button>`);
   li.appendChild(front);
-  let x0, y0, dx = 0, base = 0, drag = null;
-  const set = (x, anim) => { front.style.transition = anim ? 'transform .2s' : 'none'; front.style.transform = x ? `translateX(${x}px)` : ''; li.dataset.open = x < 0 ? 'del' : x > 0 ? 'send' : ''; };
-  const close = () => { set(0, true); base = 0; if (openSwipe === close) openSwipe = null; };
+  const actDel = li.querySelector('.swipe-act.del'), actSend = li.querySelector('.swipe-act.send');
+  let x0, y0, t0, lastX, lastT, vx = 0, dx = 0, base = 0, drag = null, raf = 0;
+  // Resistencia elástica al pasar del ancho del botón, como en el iPhone.
+  const rubber = x => { const a = Math.abs(x); return a <= W ? x : Math.sign(x) * (W + (a - W) * 0.35); };
+  const paint = (x, anim) => {
+    const ease = anim ? 'transform .45s cubic-bezier(.2,.9,.25,1)' : 'none';
+    front.style.transition = ease; front.style.transform = `translate3d(${x}px,0,0)`;
+    // La tira de color crece con el dedo y el ícono aparece poco a poco.
+    for (const [el, side] of [[actDel, -1], [actSend, 1]]) {
+      if (!el) continue;
+      const w = Math.max(0, x * side), k = Math.min(1, w / W);
+      el.style.transition = anim ? 'width .45s cubic-bezier(.2,.9,.25,1)' : 'none';
+      el.style.width = w + 'px';
+      const inn = el.firstElementChild;
+      inn.style.transition = anim ? 'opacity .3s, transform .45s cubic-bezier(.2,.9,.25,1)' : 'none';
+      inn.style.opacity = k; inn.style.transform = `scale(${0.6 + 0.4 * k})`;
+    }
+  };
+  const settle = x => { base = x; paint(x, true); openSwipe = x ? close : (openSwipe === close ? null : openSwipe); };
+  const close = () => settle(0);
   front.addEventListener('touchstart', e => {
     if (openSwipe && openSwipe !== close) openSwipe();
-    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY; dx = 0; drag = null;
+    x0 = lastX = e.touches[0].clientX; y0 = e.touches[0].clientY; t0 = lastT = e.timeStamp; vx = 0; dx = base; drag = null;
   }, { passive: true });
   front.addEventListener('touchmove', e => {
-    const mx = e.touches[0].clientX - x0, my = e.touches[0].clientY - y0;
-    if (drag === null && (Math.abs(mx) > 8 || Math.abs(my) > 8)) drag = Math.abs(mx) > Math.abs(my);
+    const cx = e.touches[0].clientX, mx = cx - x0, my = e.touches[0].clientY - y0;
+    if (drag === null && (Math.abs(mx) > 6 || Math.abs(my) > 6)) drag = Math.abs(mx) > Math.abs(my) * 1.2;
     if (!drag) return;
     e.preventDefault();
-    dx = Math.max(send ? -W * 1.5 : -W * 1.5, Math.min(send ? W * 1.5 : 0, base + mx));
-    set(dx);
+    if (e.timeStamp > lastT) { vx = 0.8 * ((cx - lastX) / (e.timeStamp - lastT)) + 0.2 * vx; lastX = cx; lastT = e.timeStamp; }
+    let x = base + mx;
+    if (!send && x > 0) x = x * 0.15; // sin acción a la derecha: solo un pequeño rebote
+    dx = rubber(x);
+    cancelAnimationFrame(raf); raf = requestAnimationFrame(() => paint(dx));
   }, { passive: false });
   front.addEventListener('touchend', () => {
     if (!drag) return;
-    base = dx < -W / 2 ? -W : (send && dx > W / 2) ? W : 0;
-    set(base, true);
-    openSwipe = base ? close : null;
+    cancelAnimationFrame(raf);
+    // Un movimiento rápido también abre o cierra, aunque sea corto.
+    const fling = Math.abs(vx) > 0.4 ? Math.sign(vx) : 0;
+    let to = 0;
+    if (fling < 0 || (!fling && dx < -W / 2)) to = base > 0 ? 0 : -W;
+    else if (fling > 0 || (!fling && dx > W / 2)) to = base < 0 ? 0 : (send ? W : 0);
+    settle(to);
   });
   // Con la fila abierta, tocarla solo la cierra (no abre el reporte).
   front.addEventListener('click', e => { if (base) { e.preventDefault(); e.stopPropagation(); close(); } }, true);
-  li.querySelector('.swipe-act.del').onclick = async () => { close(); await del(); };
-  if (send) li.querySelector('.swipe-act.send').onclick = async () => {
+  actDel.onclick = async () => { close(); await del(); };
+  if (send) actSend.onclick = async () => {
     close(); toast(tr('Generando…'));
     try { await send(); } catch (e) { console.error(e); toast(tr('Error:') + ' ' + (e?.message || tr('inténtalo de nuevo')), 5000); }
   };
+  paint(0);
 }
 
 // Segundo paso del envío: un toque más para compartir los videos (el teléfono exige un toque por envío).
@@ -1173,4 +1198,18 @@ document.querySelector('.topbar').append(offlineBar);
 const updateOnline = () => { offlineBar.textContent = tr('Sin conexión: tus cambios se guardan en el teléfono'); offlineBar.hidden = navigator.onLine; };
 window.addEventListener('online', updateOnline); window.addEventListener('offline', updateOnline);
 route();
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' });
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  // Cuando llega una versión nueva, la app se recarga sola una vez para usarla (sin interrumpir si hay una ventana abierta).
+  const hadSW = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  const reload = () => { if (!reloading) { reloading = true; location.reload(); } };
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadSW) return;
+    if (!document.querySelector('dialog[open]')) reload();
+    else document.addEventListener('visibilitychange', () => document.hidden && reload());
+  });
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+    // Al volver a la app (estaba en segundo plano), busca si hay versión nueva.
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) reg.update().catch(() => {}); });
+  });
+}
