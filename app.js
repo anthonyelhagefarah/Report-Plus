@@ -67,7 +67,8 @@ function pickFiles(accept, { capture, multiple } = {}) {
     if (capture) inp.setAttribute('capture', 'environment');
     if (multiple) inp.multiple = true;
     // En la página (no suelto en memoria): si no, el iPhone a veces pierde la foto al volver de la cámara.
-    inp.className = 'file-hidden'; document.body.appendChild(inp);
+    // Dentro de la ventana abierta, si hay una: lo que queda detrás de una ventana no responde en el iPhone.
+    inp.className = 'file-hidden'; ([...document.querySelectorAll('dialog[open]')].pop() || document.body).appendChild(inp);
     const done = files => { inp.remove(); resolve(files); };
     inp.onchange = () => done([...inp.files]);
     inp.addEventListener('cancel', () => done([]));
@@ -336,7 +337,7 @@ function quickCreateForm() {
       <div id="qgeo" class="muted small"></div>
       <div id="qmap"></div>
       <label>${tr('Foto de portada')} <small>(${tr('opcional')})</small></label>
-      <div class="row cover-pick"><button type="button" data-cv="take">${ic('camera')} ${tr('Tomar foto')}</button><button type="button" data-cv="pick">${ic('gallery')} ${tr('Galería')}</button></div>
+      <div class="row cover-pick"><label class="btn" data-cv="take"><input type="file" class="file-hidden" accept="image/*" capture="environment">${ic('camera')} ${tr('Tomar foto')}</label><label class="btn" data-cv="pick"><input type="file" class="file-hidden" accept="image/*">${ic('gallery')} ${tr('Galería')}</label></div>
       <div id="qcover"></div>
       <label>${tr('Teléfono')}<input name="phone" type="tel"></label>
       <label>${tr('Correo')}<input name="email" type="email"></label>
@@ -345,8 +346,8 @@ function quickCreateForm() {
     </form>`;
     document.body.appendChild(d);
     let geo = null, cover = null;
-    d.querySelectorAll('[data-cv]').forEach(b => b.onclick = async () => {
-      const [f] = await pickFiles('image/*', { capture: b.dataset.cv === 'take' });
+    d.querySelectorAll('[data-cv] input').forEach(inp => inp.onchange = () => {
+      const [f] = inp.files; inp.value = '';
       if (!f) return;
       cover = f;
       $('#qcover', d).innerHTML = `<div class="cover-prev"><img src="${URL.createObjectURL(f)}" alt=""><button type="button" class="kebab" id="qcoverdel" aria-label="${tr('Quitar')}">${ic('xcircle')}</button></div>`;
@@ -375,9 +376,17 @@ function actionSheet(title, options) {
     const d = document.createElement('dialog');
     d.className = 'sheet actions';
     d.innerHTML = `<form method="dialog">${title ? `<h2>${esc(title)}</h2>` : ''}
-      ${options.map(([k, t, cls, icon]) => `<button value="${esc(k)}" class="wide ${cls || ''}">${icon ? ic(icon) + ' ' : ''}${esc(t)}</button>`).join('')}
+      ${options.map(([k, t, cls, icon, file]) => file
+        // Opción que abre cámara o galería: selector de archivo real, que el iPhone abre siempre.
+        ? `<label class="btn wide ${cls || ''}" data-k="${esc(k)}"><input type="file" class="file-hidden" accept="${file.accept}" ${file.capture ? 'capture="environment"' : ''}>${icon ? ic(icon) + ' ' : ''}${esc(t)}</label>`
+        : `<button value="${esc(k)}" class="wide ${cls || ''}">${icon ? ic(icon) + ' ' : ''}${esc(t)}</button>`).join('')}
       <button value="" class="wide ghost">${tr('Cancelar')}</button></form>`;
     document.body.appendChild(d);
+    actionSheet.files = [];
+    d.querySelectorAll('label[data-k] input').forEach(inp => inp.addEventListener('change', () => {
+      if (!inp.files.length) return;
+      actionSheet.files = [...inp.files]; d.close(inp.parentElement.dataset.k);
+    }));
     d.addEventListener('close', () => { const v = d.returnValue; d.remove(); resolve(v || null); });
     d.addEventListener('click', e => { if (e.target === d) d.close(); });
     d.showModal();
@@ -703,11 +712,11 @@ async function viewReport(id) {
     if (videos.length) await sendVideosStep(videos, r.title);
   });
   $('#coverbtn').onclick = async () => {
-    const opts = [['take', tr('Tomar foto'), '', 'camera'], ['pick', tr('Elegir de galería'), '', 'gallery']];
+    const opts = [['take', tr('Tomar foto'), '', 'camera', { accept: 'image/*', capture: true }], ['pick', tr('Elegir de galería'), '', 'gallery', { accept: 'image/*' }]];
     if (r.coverPhoto) opts.push(['see', tr('Ver portada actual'), '', 'eye'], ['del', tr('Quitar foto de portada'), 'danger']);
     const a = await actionSheet(tr('Foto de portada'), opts);
     if (a === 'take' || a === 'pick') {
-      const [f] = await pickFiles('image/*', { capture: a === 'take' });
+      const [f] = actionSheet.files;
       if (f) { r.coverPhoto = f; await DB.put('reports', r); toast(tr('Foto de portada guardada')); route(); }
     }
     if (a === 'see') openViewer(r.coverPhoto);
