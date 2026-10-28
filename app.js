@@ -66,7 +66,11 @@ function pickFiles(accept, { capture, multiple } = {}) {
     inp.type = 'file'; inp.accept = accept;
     if (capture) inp.setAttribute('capture', 'environment');
     if (multiple) inp.multiple = true;
-    inp.onchange = () => resolve([...inp.files]);
+    // En la página (no suelto en memoria): si no, el iPhone a veces pierde la foto al volver de la cámara.
+    inp.className = 'file-hidden'; document.body.appendChild(inp);
+    const done = files => { inp.remove(); resolve(files); };
+    inp.onchange = () => done([...inp.files]);
+    inp.addEventListener('cancel', () => done([]));
     inp.click();
   });
 }
@@ -687,7 +691,7 @@ async function viewReport(id) {
   const entryCap = Object.fromEntries((r.entries || []).map(e => [e.id, e.caption]));
   const exportData = async () => ({ company: await DB.getSettings(), client: c || {}, report: r, sections: r.sections,
     items: [...items].sort((a, b) => a.order - b.order).map(i => (i.entryId in entryCap ? { ...i, caption: entryCap[i.entryId] } : i)) });
-  const busy = async (btn, fn) => { btn.disabled = true; const t = btn.innerHTML; btn.textContent = tr('Generando…'); try { await fn(); } catch (e) { console.error(e); toast(tr('Error:') + ' ' + e.message, 5000); } btn.disabled = false; btn.innerHTML = t; };
+  const busy = async (btn, fn) => { btn.disabled = true; const t = btn.innerHTML; btn.textContent = tr('Generando…'); try { await fn(); } catch (e) { console.error(e); toast(tr('Error:') + ' ' + (e?.message || tr('inténtalo de nuevo')), 5000); } btn.disabled = false; btn.innerHTML = t; };
   const base = Exporter.slug(r.title) || tr('reporte');
   // Enviar: primero el PDF y, si hay videos, después los videos como archivos aparte
   // (WhatsApp no acepta PDF y video en el mismo envío, por eso van en dos pasos).
@@ -695,7 +699,7 @@ async function viewReport(id) {
     const data = await exportData();
     const { pdf } = await Exporter.buildPdf(data);
     const videos = Exporter.videoFilesFor(data.items, c?.name || r.title);
-    await shareOrDownload(pdf, `${base}.pdf`, r.title);
+    await shareOrDownload(pdf, Exporter.pdfName(data.client, r), r.title);
     if (videos.length) await sendVideosStep(videos, r.title);
   });
   $('#coverbtn').onclick = async () => {
@@ -775,25 +779,25 @@ function newItemSheet(r) {
       <label>${tr('Nota / Medida')} <small>(${tr('en Ráfaga cada foto lleva la suya')})</small><textarea name="measure" class="autogrow" rows="3" placeholder="${tr('Ej. 36 x 48')}&#10;${tr('Ventana 24 x 36')}"></textarea></label>
       <div class="cap-btns">
         <button type="button" data-a="cam">${ic('burst')}<small>${tr('Ráfaga')}</small></button>
-        <button type="button" data-a="photo">${ic('camera')}<small>${tr('Foto')}</small></button>
-        <button type="button" data-a="video">${ic('video')}<small>${tr('Video')}</small></button>
-        <button type="button" data-a="gallery">${ic('gallery')}<small>${tr('Galería')}</small></button>
+        <label data-a="photo"><input type="file" class="file-hidden" accept="image/*" capture="environment">${ic('camera')}<small>${tr('Foto')}</small></label>
+        <label data-a="video"><input type="file" class="file-hidden" accept="video/*" capture="environment">${ic('video')}<small>${tr('Video')}</small></label>
+        <label data-a="gallery"><input type="file" class="file-hidden" accept="image/*,video/*" multiple>${ic('gallery')}<small>${tr('Galería')}</small></label>
       </div>
       <div class="row end"><button value="cancel" formnovalidate>${tr('Cancelar')}</button></div>
     </form>`;
     document.body.appendChild(d);
     d.querySelectorAll('textarea.autogrow').forEach(el => el.addEventListener('input', () => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 2 + 'px'; }));
     let result = null;
-    d.querySelector('.cap-btns').addEventListener('click', e => {
-      const b = e.target.closest('button[data-a]'); if (!b) return;
-      const action = b.dataset.a;
-      // El selector de archivos se abre aquí mismo, dentro del toque, para que iPhone lo permita.
-      const files = action === 'photo' ? pickFiles('image/*', { capture: true })
-        : action === 'video' ? pickFiles('video/*', { capture: true })
-        : action === 'gallery' ? pickFiles('image/*,video/*', { multiple: true }) : null;
+    const finish = (action, files) => {
       result = { action, files, sectionId: area, caption: d.querySelector('[name=caption]').value.trim(), measure: d.querySelector('[name=measure]').value.trim() };
       d.close();
-    });
+    };
+    d.querySelector('[data-a=cam]').addEventListener('click', () => finish('cam', null));
+    // Foto, Video y Galería son selectores de archivo reales dentro de la ventana: el iPhone los abre siempre
+    // y la ventana se cierra solo cuando ya llegó la foto o el video.
+    d.querySelectorAll('label[data-a] input').forEach(inp => inp.addEventListener('change', () => {
+      if (inp.files.length) finish(inp.parentElement.dataset.a, [...inp.files]);
+    }));
     d.addEventListener('close', () => { d.remove(); resolve(result); });
     d.showModal();
   });

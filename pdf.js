@@ -2,7 +2,8 @@
 const Exporter = (() => {
   const blobToImage = blob => new Promise((res, rej) => {
     const img = new Image();
-    img.onload = () => res(img); img.onerror = rej;
+    img.onload = () => res(img);
+    img.onerror = () => { URL.revokeObjectURL(img.src); rej(new Error(tr('No se pudo leer una foto'))); };
     img.src = URL.createObjectURL(blob);
   });
 
@@ -14,7 +15,16 @@ const Exporter = (() => {
     c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
     URL.revokeObjectURL(img.src);
-    return { data: c.toDataURL('image/jpeg', 0.82), w: c.width, h: c.height };
+    const out = { data: c.toDataURL('image/jpeg', 0.82), w: c.width, h: c.height };
+    c.width = c.height = 0; // libera memoria: el iPhone se traba si se acumulan lienzos grandes
+    return out;
+  }
+
+  // Si una foto no se puede leer, se intenta con una copia; si tampoco, se omite en vez de cancelar todo el PDF.
+  async function safeJpeg(blob, max) {
+    try { return await toJpeg(blob, max); } catch (e) { console.warn(e); }
+    try { return await toJpeg(new Blob([await blob.arrayBuffer()], { type: blob.type || 'image/jpeg' }), max); } catch (e) { console.warn(e); }
+    return null;
   }
 
   const ext = (blob, fallback) => {
@@ -55,9 +65,8 @@ const Exporter = (() => {
     if (report.cover !== false) {
       let y = 30;
       if (company.logo) {
-        const lg = await toJpeg(company.logo, 600);
-        const h = 28, w = Math.min(70, h * lg.w / lg.h);
-        doc.addImage(lg.data, 'JPEG', (W - w) / 2, y, w, h); y += h + 10;
+        const lg = await safeJpeg(company.logo, 600);
+        if (lg) { const h = 28, w = Math.min(70, h * lg.w / lg.h); doc.addImage(lg.data, 'JPEG', (W - w) / 2, y, w, h); y += h + 10; }
       }
       doc.setFont('helvetica', 'bold'); doc.setFontSize(24); doc.setTextColor(20);
       doc.text(doc.splitTextToSize(report.title || tr('Reporte'), W - 2 * M), W / 2, y + 8, { align: 'center' }); y += 22;
@@ -78,10 +87,12 @@ const Exporter = (() => {
       }
       // Foto de portada solo si el usuario la eligió.
       if (report.coverPhoto) {
-        const im = await toJpeg(report.coverPhoto);
+        const im = await safeJpeg(report.coverPhoto);
+        if (im) {
         const maxW = W - 4 * M, maxH = H - y - 55;
         const k = Math.min(maxW / im.w, maxH / im.h);
         if (k > 0) { doc.addImage(im.data, 'JPEG', (W - im.w * k) / 2, y + 6, im.w * k, im.h * k); }
+        }
       }
       doc.setFontSize(10); doc.setTextColor(90);
       const cinfo = [company.name, company.contact, company.phone, company.email].filter(Boolean);
@@ -124,8 +135,14 @@ const Exporter = (() => {
     };
     const drawMedia = async (it, x, y, w, h) => {
       const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob);
-      if (!src) { doc.setFillColor(240); doc.rect(x, y, w, h, 'F'); return; }
-      const im = await toJpeg(src, 1800);
+      const im = src && await safeJpeg(src, 1800);
+      if (!im) {
+        const ph = Math.min(h, w * 0.6);
+        doc.setFillColor(240); doc.rect(x, y, w, ph, 'F');
+        doc.setFont('helvetica', 'italic'); doc.setFontSize(10); doc.setTextColor(120);
+        doc.text(tr('Foto no disponible'), x + w / 2, y + ph / 2, { align: 'center' });
+        return ph;
+      }
       const k = Math.min(w / im.w, h / im.h);
       const iw = im.w * k, ih = im.h * k, ix = x + (w - iw) / 2, iy = y;
       doc.addImage(im.data, 'JPEG', ix, iy, iw, ih);
@@ -205,11 +222,17 @@ const Exporter = (() => {
   }
 
   // Archivos de video con el mismo nombre que aparece en el PDF, para enviarlos aparte.
+  // Nombre del PDF: "Cliente - Dirección, Residencial".
+  function pdfName(client, report) {
+    const place = [clean(client.address), clean(client.residential)].filter(Boolean).join(', ');
+    return ([clean(client.name || report.title), place].filter(Boolean).join(' - ') || tr('reporte')).slice(0, 120) + '.pdf';
+  }
+
   function videoFilesFor(items, clientName) {
     const vids = items.filter(i => i.type === 'video');
     let n = 0;
     return vids.map(i => new File([i.blob], videoName(i, ++n, clientName, vids.length), { type: (i.blob.type || 'video/mp4').split(';')[0] }));
   }
 
-  return { buildPdf, buildZip, slug, videoFilesFor };
+  return { buildPdf, buildZip, slug, pdfName, videoFilesFor };
 })();
