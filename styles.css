@@ -28,6 +28,9 @@ label { display: block; margin: 10px 0; font-size: 14px; color: var(--muted); }
 .row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
 .row.wrap { flex-wrap: wrap; }
 .row.end { justify-content: flex-end; }
+.media-bar > button { min-width: 0; line-height: 1.2; }
+.nav-pair { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; align-self: stretch; }
+.nav-pair button { padding: 9px 9px; white-space: nowrap; }
 .col { display: flex; flex-direction: column; gap: 6px; }
 .grow { flex: 1; min-width: 0; }
 .muted { color: var(--muted); }

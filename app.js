@@ -1018,10 +1018,12 @@ async function viewItem(id) {
     : `<img src="${objUrl(it.annotated || it.blob)}" alt="">`;
   view.innerHTML = `
     <div class="media">${media}</div>
-    <div class="row wrap">
+    <div class="row media-bar">
       ${it.type === 'photo' ? `<button class="primary" id="annot">${ic('pencil')} ${tr('Anotar / medir')}</button>` : `<button id="rethumb">${ic('gallery')} ${tr('Cambiar miniatura')}</button>`}
-      <button id="prev" ${idx <= 0 ? 'disabled' : ''}>‹ ${tr('Anterior')}</button>
-      <button id="next" ${idx >= siblings.length - 1 ? 'disabled' : ''}>${tr('Siguiente')} ›</button>
+      <div class="nav-pair">
+        <button id="prev" ${idx <= 0 ? 'disabled' : ''}>‹ ${tr('Anterior')}</button>
+        <button id="next" ${idx >= siblings.length - 1 ? 'disabled' : ''}>${tr('Siguiente')} ›</button>
+      </div>
     </div>
     <section class="card">
       <label ${inEntry ? 'hidden' : ''}>${tr('Descripción')}<textarea id="caption" class="autogrow" rows="1" placeholder="${tr('Ej. Oficina')}">${esc(it.caption)}</textarea></label>
