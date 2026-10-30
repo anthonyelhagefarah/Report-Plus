@@ -97,12 +97,20 @@ function videoThumb(blob) {
   });
 }
 
+// Copia real del archivo: en el iPhone, guardar la foto "tal cual" la deja ligada a un archivo temporal
+// que el sistema borra después, y la foto se pierde. La copia queda guardada dentro de la app.
+async function keep(f) {
+  if (!f) return f;
+  try { return new Blob([await f.arrayBuffer()], { type: f.type || 'image/jpeg' }); } catch (e) { console.warn(e); return f; }
+}
+
 async function addMedia(report, sectionId, files, extra = {}) {
   const existing = await DB.byIndex('items', 'reportId', report.id);
   let order = existing.length;
   const ids = [];
-  for (const f of files) {
+  for (let f of files) {
     const isVideo = f.type.startsWith('video');
+    f = await keep(f);
     const item = { id: DB.uid(), reportId: report.id, sectionId, type: isVideo ? 'video' : 'photo', blob: f, caption: '', measure: '', shapes: [], order: order++, createdAt: Date.now(), ...extra };
     if (isVideo) Object.assign(item, await videoThumb(f));
     await DB.put('items', item);
@@ -519,7 +527,7 @@ async function viewHome(folderId) {
     if (!v || !v.name) return;
     const c = { id: DB.uid(), name: v.name, address: v.address, residential: v.residential, phone: v.phone, email: v.email, notes: v.notes, geo: v.geo || undefined, createdAt: Date.now(), updatedAt: Date.now() };
     await DB.put('clients', c);
-    const r = newReport(c.id, { title: v.name, location: v.address, geo: v.geo || undefined, folderId: folder ? folder.id : undefined, coverPhoto: v.cover || undefined });
+    const r = newReport(c.id, { title: v.name, location: v.address, geo: v.geo || undefined, folderId: folder ? folder.id : undefined, coverPhoto: (await keep(v.cover)) || undefined });
     if (SECTION_TEMPLATES[v.tpl]) r.sections = SECTION_TEMPLATES[v.tpl].map(t => ({ id: DB.uid(), title: t, text: '' }));
     await DB.put('reports', r);
     location.hash = `#/r/${r.id}`;
@@ -794,7 +802,7 @@ async function viewReport(id) {
     const a = await actionSheet(tr('Foto de portada'), opts);
     if (a === 'take' || a === 'pick') {
       const [f] = actionSheet.files;
-      if (f) { r.coverPhoto = f; await DB.put('reports', r); toast(tr('Foto de portada guardada')); route(); }
+      if (f) { r.coverPhoto = await keep(f); await DB.put('reports', r); toast(tr('Foto de portada guardada')); route(); }
     }
     if (a === 'see') openViewer(r.coverPhoto);
     if (a === 'del') { delete r.coverPhoto; await DB.put('reports', r); route(); }
@@ -1051,7 +1059,14 @@ async function viewItem(id) {
   });
   $('#section').addEventListener('change', save);
   const mediaImg = $('.media img');
-  if (mediaImg) mediaImg.onclick = () => openViewer(it.annotated || it.blob);
+  if (mediaImg) {
+    mediaImg.onclick = () => openViewer(it.annotated || it.blob);
+    // Si la versión anotada no abre, se muestra la original; si tampoco, un aviso claro en vez del "?".
+    mediaImg.onerror = () => {
+      if (it.annotated && !mediaImg.dataset.retry) { mediaImg.dataset.retry = 1; mediaImg.src = objUrl(it.blob); return; }
+      $('.media').innerHTML = `<div class="media-lost">${ic('camera')}<p>${tr('Esta foto ya no está guardada en el teléfono.')}</p><p class="small">${tr('La nota y la medida siguen aquí. Puedes eliminarla y tomar la foto de nuevo.')}</p></div>`;
+    };
+  }
   const go = async to => { await save(); location.hash = `#/i/${siblings[to].id}`; };
   $('#prev').onclick = () => go(idx - 1);
   $('#next').onclick = () => go(idx + 1);
@@ -1113,7 +1128,7 @@ async function viewSettings() {
       <p class="muted" id="usage"></p>
     </section>`;
   $('#lang').onchange = e => { I18N.set(e.target.value); route(); };
-  $('#logo').onclick = async () => { const [f] = await pickFiles('image/*'); if (f) { s.logo = f; await DB.saveSettings(s); route(); } };
+  $('#logo').onclick = async () => { const [f] = await pickFiles('image/*'); if (f) { s.logo = await keep(f); await DB.saveSettings(s); route(); } };
   if ($('#nologo')) $('#nologo').onclick = async () => { s.logo = null; await DB.saveSettings(s); route(); };
   $('#save').onclick = async () => {
     ['name', 'contact', 'phone', 'email'].forEach(k => { s[k] = $('#' + k).value.trim(); });

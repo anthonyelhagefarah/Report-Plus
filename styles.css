@@ -106,6 +106,10 @@ dialog h2 { margin-bottom: 6px; }
 
 textarea.autogrow { resize: none; overflow: hidden; min-height: 44px; }
 .media img { cursor: zoom-in; }
+.media-lost { color: #fff; text-align: center; padding: 28px 18px; }
+.media-lost .i { width: 34px; height: 34px; opacity: .7; }
+.media-lost p { margin: 8px 0 0; }
+.media-lost .small { opacity: .75; font-size: 13px; }
 /* Visor de foto */
 .viewer { position: fixed; inset: 0; z-index: 40; background: #000; display: grid; place-items: center; overflow: hidden; touch-action: none; }
 .viewer img { max-width: 100%; max-height: 100%; transform-origin: center center; user-select: none; -webkit-user-select: none; will-change: transform; }
