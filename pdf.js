@@ -118,7 +118,13 @@ const Exporter = (() => {
     const textLinesFor = (it, width, withCaption, num) => {
       const out = [];
       doc.setFont('helvetica', 'bold'); doc.setFontSize(12);
-      if (withCaption) out.push({ bold: true, size: 12, lines: doc.splitTextToSize(`${num}. ${(it.caption || '').replace(/\n+/g, ' ')}`.trim(), width) });
+      if (withCaption) {
+        // Respeta los saltos de línea que escribió el usuario (ej. "Sala" en una línea y el detalle en otras).
+        const capLines = (it.caption || '').split('\n').map(l => l.trim()).filter(Boolean);
+        if (!capLines.length) capLines.push('');
+        capLines[0] = `${num}. ${capLines[0]}`.trim();
+        out.push({ bold: true, size: 12, lines: [].concat(...capLines.map(l => doc.splitTextToSize(l, width))) });
+      }
       const measures = (it.measure || '').split('\n').map(m => m.trim()).filter(Boolean);
       doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
       if (measures.length) out.push({ bold: false, size: 11, lines: doc.splitTextToSize(`${tr('Nota / Medida')}: ${measures[0]}`, width).concat(...measures.slice(1).map(m => doc.splitTextToSize(m, width))) });

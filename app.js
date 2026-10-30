@@ -684,12 +684,12 @@ async function viewReport(id) {
       ${geoLine(r.geo)}
       ${simple && r.geo ? mapEmbed(r.geo) : ''}
       <div class="muted">${tr('{p} fotos · {v} videos', { p: nPhotos, v: nVideos })}${r.coverPhoto ? ' · ' + tr('con foto de portada') : ''}</div>
-      <div class="row wrap">
-        <button class="primary" id="pdf">${ic('arrow')} ${tr(nVideos ? 'Enviar PDF + videos' : 'Enviar PDF')}</button>
-        <button id="coverbtn">${ic('gallery')} ${tr('Portada')}</button>
-        <button id="here">${ic('pin')} ${tr('Ubicación')}</button>
-        <button id="settings">${ic('gear')} ${tr('Ajustes')}</button>
-        <button id="more">⋯</button>
+      <div class="report-actions">
+        <button class="primary" id="pdf">${ic('arrow')}<span>${tr(nVideos ? 'Enviar PDF + videos' : 'Enviar PDF')}</span></button>
+        <button class="primary" id="coverbtn">${ic('gallery')}<span>${tr('Portada')}</span></button>
+        <button class="primary" id="here">${ic('pin')}<span>${tr('Ubicación')}</span></button>
+        <button class="primary" id="settings">${ic('gear')}<span>${tr('Ajustes')}</span></button>
+        <button class="primary more" id="more">⋯</button>
       </div>
     </section>
     ${simple ? simpleReportBody(r, items) : r.sections.map(s => {
