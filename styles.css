@@ -2,9 +2,9 @@
 @font-face { font-family: 'Poppins'; font-style: normal; font-weight: 500; font-display: swap; src: url(fonts/poppins-500.woff2) format('woff2'); }
 @font-face { font-family: 'Poppins'; font-style: normal; font-weight: 600; font-display: swap; src: url(fonts/poppins-600.woff2) format('woff2'); }
 :root {
-  --bg: #f5f3f1; --surface: #fff; --text: #1c1c1e; --muted: #5f5955; --line: #e5e0dc;
-  --accent: #ee6a2c; --on-accent: #fff; --accent-2: #ee6a2c; --danger: #c62828; --radius: 12px;
-  --bar: #1c1c1e; --on-bar: #fff;
+  --bg: #f4f1ef; --surface: #fff; --text: #000; --muted: #5c5653; --line: #e3dcd8;
+  --accent: #c84b31; --on-accent: #000; --accent-2: #c84b31; --danger: #c62828; --radius: 12px;
+  --bar: var(--accent); --on-bar: var(--on-accent);
   color-scheme: light;
 }
 * { box-sizing: border-box; }
