@@ -1,14 +1,19 @@
-@font-face { font-family: 'Poppins'; font-style: normal; font-weight: 400; font-display: swap; src: url(fonts/poppins-400.woff2) format('woff2'); }
-@font-face { font-family: 'Poppins'; font-style: normal; font-weight: 500; font-display: swap; src: url(fonts/poppins-500.woff2) format('woff2'); }
-@font-face { font-family: 'Poppins'; font-style: normal; font-weight: 600; font-display: swap; src: url(fonts/poppins-600.woff2) format('woff2'); }
 :root {
-  --bg: #f4f1ef; --surface: #fff; --text: #000; --muted: #5c5653; --line: #e3dcd8;
-  --accent: #c84b31; --on-accent: #000; --accent-2: #c84b31; --danger: #c62828; --radius: 12px;
-  --bar: var(--accent); --on-bar: var(--on-accent);
+  --bg: #f2f2f7; --surface: #fff; --text: #000; --muted: rgba(60,60,67,.6); --line: rgba(60,60,67,.18);
+  --sep: rgba(60,60,67,.29); --fill: rgba(118,118,128,.12); --press: #e5e5ea;
+  --accent: #c84b31; --on-accent: #fff; --accent-2: var(--accent); --danger: #ff3b30; --radius: 12px;
+  --tint: color-mix(in srgb, var(--accent) 13%, transparent);
+  --bar: rgba(249,249,249,.86); --on-bar: var(--text);
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Helvetica Neue", system-ui, sans-serif;
   color-scheme: light;
 }
+/* Opciones de color (se elige una) */
+:root[data-color="azul"] { --accent: #007aff; }
+:root[data-color="verde"] { --accent: #248a3d; }
+:root[data-color="indigo"] { --accent: #5856d6; }
+:root[data-color="grafito"] { --accent: #1c1c1e; --tint: rgba(118,118,128,.14); }
 * { box-sizing: border-box; }
-html, body { touch-action: pan-x pan-y; margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+html, body { touch-action: pan-x pan-y; margin: 0; background: var(--bg); color: var(--text); font: 16px/1.35 var(--font); letter-spacing: -.01em; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
 body.noscroll { overflow: hidden; }
 a { color: inherit; text-decoration: none; }
 .topbar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: calc(env(safe-area-inset-top) + 10px) 12px 10px; background: var(--bar); color: var(--on-bar); }
@@ -215,3 +220,128 @@ main:has(#newItem) { padding-bottom: calc(env(safe-area-inset-bottom) + 150px); 
 .swipe-act.send { left: 0; background: linear-gradient(90deg, #2fb457, #26a14c); }
 
 b, strong, h2 { font-weight: 600; }
+
+
+/* ================= Estilo iPhone ================= */
+/* Barra de arriba translúcida, título centrado; en Inicio el título grande a la izquierda */
+.topbar { background: var(--bar); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px); border-bottom: .5px solid var(--sep); padding: calc(env(safe-area-inset-top) + 6px) 6px 6px; min-height: 50px; }
+.topbar h1 { font-size: 17px; font-weight: 600; text-align: center; letter-spacing: -.02em; }
+.topbar:has(#backBtn[hidden]) { border-bottom-color: transparent; background: var(--bg); padding-left: 16px; }
+.topbar:has(#backBtn[hidden]) h1 { font-size: 32px; font-weight: 700; text-align: left; letter-spacing: -.03em; padding-top: 6px; }
+.icon-btn { color: var(--accent); padding: 6px 8px; min-width: 44px; min-height: 44px; display: grid; place-items: center; border-radius: 10px; }
+.icon-btn .i { width: 25px; height: 25px; stroke-width: 1.9; }
+#backBtn .i { width: 26px; height: 26px; stroke-width: 2.4; }
+main { padding: 8px 16px calc(env(safe-area-inset-bottom) + 40px); }
+
+/* Botones: sin bordes, esquinas redondeadas, al tocar se aclaran */
+button, label.btn { border: 0; border-radius: 12px; background: var(--fill); color: var(--accent); font-weight: 500; padding: 11px 16px; transition: opacity .18s, transform .18s, background-color .18s; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+button:active, label.btn:active { opacity: .55; }
+button.primary { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+button.primary:active { opacity: .75; transform: scale(.97); }
+button.danger { color: var(--danger); }
+button.ghost { background: transparent; border: 0; color: var(--accent); font-weight: 500; }
+.ghost .i, button .i { stroke-width: 1.9; }
+
+/* Campos de texto como en los formularios del iPhone */
+input, textarea, select { border: 0; border-radius: 10px; background: var(--fill); padding: 11px 12px; font-size: 17px; letter-spacing: -.01em; outline: none; -webkit-appearance: none; appearance: none; }
+input:focus, textarea:focus, select:focus { box-shadow: 0 0 0 2px var(--accent); background: var(--surface); }
+select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 9.5l4-4 4 4M8 14.5l4 4 4-4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; background-size: 18px; padding-right: 34px; }
+label { font-size: 13px; color: var(--muted); margin: 14px 0 6px; letter-spacing: 0; }
+input[type=search] { background: var(--fill) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.3' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.3'/%3E%3Cpath d='M15.2 15.2l5 5'/%3E%3C/svg%3E") no-repeat 9px center / 18px; padding: 8px 10px 8px 34px; font-size: 17px; height: 38px; }
+input[type=search]::-webkit-search-cancel-button { -webkit-appearance: none; }
+/* Casillas como interruptor del iPhone */
+input[type=checkbox] { -webkit-appearance: none; appearance: none; position: relative; width: 51px; height: 31px; border-radius: 999px; background: #e9e9ea; padding: 0; transform: none; vertical-align: middle; transition: background .25s; }
+input[type=checkbox]::before { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 3px 8px rgba(0,0,0,.15), 0 1px 1px rgba(0,0,0,.16); transition: transform .3s cubic-bezier(.32,.72,0,1); }
+input[type=checkbox]:checked { background: #34c759; }
+input[type=checkbox]:checked::before { transform: translateX(20px); }
+input[type=checkbox]:focus { box-shadow: none; }
+
+/* Tarjetas y listas agrupadas (fondo gris claro, bloques blancos sin borde) */
+.card, .section, .list { border: 0; border-radius: var(--radius); }
+.list li + li { border-top: 0; }
+.list li + li::before { content: ""; position: absolute; top: 0; right: 0; left: 56px; border-top: .5px solid var(--sep); z-index: 2; }
+.list a { padding: 13px 4px 13px 16px; font-size: 17px; }
+.list b { font-weight: 400; }
+.list .ico { color: var(--accent); }
+.list .ico .i { width: 26px; height: 26px; }
+.kebab { color: var(--muted); display: grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0 10px; background: transparent; }
+.kebab .i { width: 22px; height: 22px; stroke-width: 2.2; }
+.chev .i { width: 16px; height: 16px; color: #c4c4c7; stroke-width: 2.6; }
+.toolbar { margin: 4px 0 12px; }
+.badge { background: var(--fill); }
+#newfolder { margin-top: 14px; }
+.avatar { color: #fff; }
+
+/* Reporte: tarjeta de resumen y botones del mismo color */
+.summary { padding: 16px; }
+.summary > div:first-child { font-size: 15px; }
+.summary > div:first-child b { font-size: 20px; font-weight: 700; letter-spacing: -.02em; display: block; margin-bottom: 2px; }
+.summary .i { color: var(--muted); }
+.report-actions { gap: 8px; margin-top: 14px; }
+.report-actions button { border-radius: 14px; padding: 10px 2px 9px; font-size: 11.5px; letter-spacing: -.02em; font-weight: 600; gap: 5px; }
+.report-actions button .i { width: 24px; height: 24px; color: inherit; }
+.report-actions button.more .i { width: 24px; height: 24px; stroke-width: 2.6; }
+.report-actions button.more { padding: 10px 12px; }
+
+/* Lista de fotos: un solo bloque con separadores finos */
+.ilist { gap: 0; background: var(--surface); border-radius: var(--radius); overflow: hidden; }
+.ilist > li { position: relative; }
+.ilist > li + li::before { content: ""; position: absolute; top: 0; right: 0; left: 16px; border-top: .5px solid var(--sep); z-index: 2; }
+.irow { border: 0; border-radius: 0; padding: 10px 4px 12px 16px; }
+.swipe-wrap.card-wrap { border-radius: 0; }
+.irow .when { font-size: 12px; margin-bottom: 6px; letter-spacing: 0; }
+.ithumb { width: 70px; height: 70px; border-radius: 10px; }
+.ithumb.sm { border-radius: 8px; }
+.itext { font-size: 16px; }
+.when .i { color: var(--accent); }
+
+/* Al tocar una fila se oscurece un poco, como en el iPhone */
+.swipe-front, .list li { transition: background-color .25s; }
+.swipe-front:has(a:active), .list li:has(> a:active) { background: var(--press); transition: none; }
+
+/* Botón + redondo flotante */
+.fab { width: 60px; height: 60px; border-radius: 50%; right: 20px; box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 35%, transparent), 0 2px 6px rgba(0,0,0,.15); transition: transform .25s cubic-bezier(.32,.72,0,1); padding: 0; display: grid; place-items: center; color: var(--on-accent); }
+.fab:active { transform: scale(.9); opacity: 1; }
+.fab .i { width: 28px; height: 28px; stroke-width: 2.6; }
+
+/* Ventanas que suben desde abajo, con la barrita para deslizar */
+dialog.sheet { margin: auto auto 0; width: 100%; max-width: 640px; max-height: 92vh; border-radius: 14px 14px 0 0; padding: 22px 16px calc(env(safe-area-inset-bottom) + 16px); background: var(--surface); }
+dialog.sheet::before { content: ""; position: absolute; top: 6px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: rgba(60,60,67,.3); }
+dialog.sheet[open] { animation: sheet-up .5s cubic-bezier(.32,.72,0,1); }
+dialog.sheet[open]::backdrop { background: rgba(0,0,0,.4); animation: fade-in .4s; }
+@keyframes sheet-up { from { transform: translate3d(0,100%,0); } }
+@keyframes fade-in { from { opacity: 0; } }
+dialog.sheet h2 { font-size: 20px; font-weight: 700; letter-spacing: -.02em; text-align: center; margin-bottom: 4px; }
+dialog.sheet .row.end { margin-top: 16px; }
+dialog.sheet .row.end button { flex: 1; padding: 13px; font-size: 17px; }
+.cap-btns { gap: 8px; margin-top: 16px; }
+.cap-btns button, .cap-btns label { border: 0; border-radius: 14px; background: var(--tint); color: var(--accent); padding: 12px 2px 10px; }
+.cap-btns small { font-size: 13px; font-weight: 600; margin-top: 2px; }
+.cap-btns .i { width: 30px; height: 30px; stroke-width: 1.8; }
+.cap-btns label:active, .cap-btns button:active { opacity: .55; }
+
+/* Menú de opciones al estilo iPhone: bloque de opciones y "Cancelar" aparte */
+dialog.sheet.actions { background: transparent; padding: 0 8px calc(env(safe-area-inset-bottom) + 8px); box-shadow: none; overflow: visible; }
+dialog.sheet.actions::before { display: none; }
+dialog.actions form { gap: 0; }
+dialog.actions form > * { background: rgba(255,255,255,.96); margin: 0; border-radius: 0; }
+dialog.actions form > :first-child { border-radius: 14px 14px 0 0; }
+dialog.actions h2 { font-size: 13px; font-weight: 600; color: var(--muted); padding: 14px 16px 12px; letter-spacing: 0; }
+dialog.actions p { padding: 0 16px 12px; text-align: center; }
+dialog.actions .wide { justify-content: center; font-size: 19px; font-weight: 400; padding: 16px; color: var(--accent); border-top: .5px solid var(--sep); }
+dialog.actions .wide.primary { color: var(--accent); background: rgba(255,255,255,.96); font-weight: 400; }
+dialog.actions .wide.danger { color: var(--danger); }
+dialog.actions form > :nth-last-child(2) { border-radius: 0 0 14px 14px; }
+dialog.actions form > .ghost:last-child { margin-top: 8px; border-radius: 14px; border-top: 0; font-weight: 600; background: #fff; }
+dialog.actions .i { width: 22px; height: 22px; }
+
+/* Deslizar filas: colores del iPhone */
+.swipe-act.del { background: #ff3b30; }
+.swipe-act.send { background: #34c759; }
+.swipe-act small { font-size: 13px; font-weight: 500; letter-spacing: 0; }
+
+/* Aviso abajo */
+#toast { background: rgba(28,28,30,.88); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); font-size: 15px; font-weight: 500; padding: 12px 18px; }
+#offline { background: #1c1c1e; font-weight: 500; }
+main { min-height: calc(100vh - 60px); background: var(--bg); }
+.list small.inline-count { display: inline; margin-left: 8px; font-size: 15px; }

@@ -29,6 +29,7 @@ function setHeader(title, back) {
   $('#title').textContent = title;
   $('#backBtn').hidden = !back;
   $('#backBtn').onclick = () => { location.hash = back; };
+  setHeader.back = back;
 }
 
 // Formulario modal genérico. fields: [{name,label,type,value,options}]
@@ -501,13 +502,13 @@ async function viewHome(folderId) {
   const reports = all.filter(r => folder ? r.folderId === folder.id : !r.folderId);
   const reportRow = (r, hidden) => {
     const l = label(r);
-    return `<li data-name="${esc(l.search)}" data-report="${r.id}" ${hidden ? 'hidden' : ''}><a href="#/r/${r.id}"><span class="ico">${ic('report')}</span><div class="grow"><b>${esc(l.text)}</b></div></a><button class="kebab" data-menu="${r.id}" aria-label="${tr('Opciones')}">⋮</button></li>`;
+    return `<li data-name="${esc(l.search)}" data-report="${r.id}" ${hidden ? 'hidden' : ''}><a href="#/r/${r.id}"><span class="ico">${ic('report')}</span><div class="grow"><b>${esc(l.text)}</b></div></a><button class="kebab" data-menu="${r.id}" aria-label="${tr('Opciones')}">${ic('ellipsis')}</button></li>`;
   };
   view.innerHTML = `
     ${folder ? '' : modeSwitch()}
     <div class="toolbar"><input type="search" id="q" placeholder="${tr('Buscar cliente o dirección…')}"></div>
     <ul class="list" id="list">
-      ${folder ? '' : folders.map(f => `<li data-name="${esc(f.name.toLowerCase())}" data-folder-row><a href="#/f/${f.id}"><span class="ico">${ic('folder')}</span><div class="grow"><b>${esc(f.name)}</b> <small class="inline-count">${all.filter(r => r.folderId === f.id).length}</small></div></a><button class="kebab" data-fmenu="${f.id}" aria-label="${tr('Opciones')}">⋮</button></li>`).join('')}
+      ${folder ? '' : folders.map(f => `<li data-name="${esc(f.name.toLowerCase())}" data-folder-row><a href="#/f/${f.id}"><span class="ico">${ic('folder')}</span><div class="grow"><b>${esc(f.name)}</b> <small class="inline-count">${all.filter(r => r.folderId === f.id).length}</small></div></a><button class="kebab" data-fmenu="${f.id}" aria-label="${tr('Opciones')}">${ic('ellipsis')}</button></li>`).join('')}
       ${reports.map(r => reportRow(r)).join('')}
       ${folder ? '' : all.filter(r => r.folderId).map(r => reportRow(r, true).replace('<li ', '<li data-infolder ')).join('')}
     </ul>
@@ -625,7 +626,7 @@ async function viewClient(id) {
     </section>
     <div class="toolbar"><h2 class="grow">${tr('Reportes')}</h2><button class="primary" id="add">+ ${tr('Reporte')}</button></div>
     <ul class="list">
-      ${reports.map(r => `<li><a href="#/r/${r.id}"><div class="grow"><b>${esc(r.title)}</b><small>${fmtDate(r.date)}${r.location ? ' · ' + esc(r.location) : ''}</small></div><span class="chev">›</span></a></li>`).join('')}
+      ${reports.map(r => `<li><a href="#/r/${r.id}"><div class="grow"><b>${esc(r.title)}</b><small>${fmtDate(r.date)}${r.location ? ' · ' + esc(r.location) : ''}</small></div><span class="chev">${ic('chevronr')}</span></a></li>`).join('')}
     </ul>
     ${reports.length ? '' : `<div class="empty"><p>${tr('Sin reportes todavía.')}</p></div>`}`;
   $('#edit').onclick = async () => {
@@ -679,17 +680,17 @@ async function viewReport(id) {
   const L = r.layout;
   view.innerHTML = `
     <section class="card summary">
-      <div><b>${esc(c?.name)}</b> · ${fmtDate(r.date)}${r.location ? ' · ' + esc(r.location) : ''}</div>
+      <div><b>${esc(c?.name)}</b> ${fmtDate(r.date)}${r.location ? ' · ' + esc(r.location) : ''}</div>
       ${c?.residential ? `<div>${ic('house')} ${esc(c.residential)}</div>` : ''}
       ${geoLine(r.geo)}
       ${simple && r.geo ? mapEmbed(r.geo) : ''}
       <div class="muted">${tr('{p} fotos · {v} videos', { p: nPhotos, v: nVideos })}${r.coverPhoto ? ' · ' + tr('con foto de portada') : ''}</div>
       <div class="report-actions">
-        <button class="primary" id="pdf">${ic('arrow')}<span>${tr(nVideos ? 'Enviar PDF + videos' : 'Enviar PDF')}</span></button>
+        <button class="primary" id="pdf">${ic('share')}<span>${tr(nVideos ? 'Enviar PDF + videos' : 'Enviar PDF')}</span></button>
         <button class="primary" id="coverbtn">${ic('gallery')}<span>${tr('Portada')}</span></button>
         <button class="primary" id="here">${ic('pin')}<span>${tr('Ubicación')}</span></button>
         <button class="primary" id="settings">${ic('gear')}<span>${tr('Ajustes')}</span></button>
-        <button class="primary more" id="more">⋯</button>
+        <button class="primary more" id="more" aria-label="${tr('Más opciones')}">${ic('ellipsis')}</button>
       </div>
     </section>
     ${simple ? simpleReportBody(r, items) : r.sections.map(s => {
@@ -845,7 +846,7 @@ function simpleReportBody(r, items) {
       <a href="#/e/${r.id}/${e.id}" class="irow-main col-main">
         <span class="itext"><b>${esc(e.caption || tr('Ráfaga'))}</b> <span class="muted">(${its.length} ${tr(its.length === 1 ? 'foto' : 'fotos')})</span></span>
         <span class="strip">${thumbs}${its.length > 4 ? `<span class="more">+${its.length - 4}</span>` : ''}</span>
-      </a><button class="kebab" data-emenu="${e.id}" aria-label="${tr('Opciones')}">⋮</button></li>`;
+      </a><button class="kebab" data-emenu="${e.id}" aria-label="${tr('Opciones')}">${ic('ellipsis')}</button></li>`;
   }
   function row(it) {
     const src = it.type === 'video' ? it.thumb : (it.annotated || it.blob);
@@ -854,7 +855,7 @@ function simpleReportBody(r, items) {
       <a href="#/i/${it.id}" class="irow-main">
         <span class="ithumb">${src ? `<img loading="lazy" src="${objUrl(src)}" alt="">` : ic('video')}${it.type === 'video' ? `<span class="vbadge">▶ ${fmtDur(it.duration)}</span>` : ''}</span>
         <span class="itext">${text ? esc(text) : `<span class="muted">${tr('Toca para agregar descripción y medidas')}</span>`}</span>
-      </a><button class="kebab" data-imenu="${it.id}" aria-label="${tr('Opciones')}">⋮</button></li>`;
+      </a><button class="kebab" data-imenu="${it.id}" aria-label="${tr('Opciones')}">${ic('ellipsis')}</button></li>`;
   }
   return `
     ${rows.length ? `<ul class="ilist">${rows.map(x => x.html).join('')}</ul>`
@@ -1204,7 +1205,83 @@ async function route() {
     else await viewHome();
   } catch (e) { console.error(e); view.innerHTML = `<div class="empty">${tr('Error:')} ${esc(e.message)}</div>`; }
   window.scrollTo(0, 0);
+  pageSlide();
 }
+
+// Movimiento entre pantallas como en el iPhone: hacia adelante entra desde la derecha, al volver entra desde la izquierda.
+const IOS_EASE = 'cubic-bezier(.32,.72,0,1)';
+const depthOf = h => { const k = (h || '').split('/')[1] || ''; return k === 'i' || k === 'e' ? 2 : k ? 1 : 0; };
+let lastDepth = depthOf(location.hash), skipSlide = true;
+function pageSlide() {
+  const d = depthOf(location.hash), dir = Math.sign(d - lastDepth);
+  lastDepth = d;
+  if (skipSlide) { skipSlide = false; return; }
+  if (!dir || !view.animate) return;
+  view.animate([{ transform: `translate3d(${dir > 0 ? 40 : -30}%,0,0)`, opacity: dir > 0 ? 1 : .6 }, { transform: 'none', opacity: 1 }],
+    { duration: 420, easing: IOS_EASE });
+}
+
+// Deslizar desde el borde izquierdo para volver atrás (gesto del iPhone).
+(() => {
+  let x0 = 0, y0 = 0, dx = 0, t0 = 0, on = false, drag = null;
+  window.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    on = t.clientX < 24 && setHeader.back && !$('#backBtn').hidden && !document.querySelector('dialog[open], .annot, .camera, .viewer');
+    if (!on) return;
+    x0 = t.clientX; y0 = t.clientY; t0 = e.timeStamp; dx = 0; drag = null;
+    e.stopPropagation();
+  }, { capture: true, passive: true });
+  window.addEventListener('touchmove', e => {
+    if (!on) return;
+    const t = e.touches[0], mx = t.clientX - x0, my = t.clientY - y0;
+    if (drag === null && (Math.abs(mx) > 6 || Math.abs(my) > 6)) drag = mx > Math.abs(my);
+    if (!drag) return;
+    e.preventDefault(); e.stopPropagation();
+    dx = Math.max(0, mx);
+    view.style.transition = 'none';
+    view.style.transform = `translate3d(${dx}px,0,0)`;
+    view.style.boxShadow = '-8px 0 24px rgba(0,0,0,.12)';
+  }, { capture: true, passive: false });
+  window.addEventListener('touchend', e => {
+    if (!on || !drag) { on = false; return; }
+    on = false; e.stopPropagation();
+    const fast = dx / Math.max(1, e.timeStamp - t0) > 0.5, W = window.innerWidth;
+    const goBack = dx > W * 0.35 || (fast && dx > 30);
+    view.style.transition = `transform .35s ${IOS_EASE}`;
+    view.style.transform = goBack ? `translate3d(${W}px,0,0)` : 'none';
+    setTimeout(() => {
+      view.style.transition = view.style.transform = view.style.boxShadow = '';
+      if (goBack) { skipSlide = true; location.hash = setHeader.back; }
+    }, 340);
+  }, { capture: true });
+})();
+
+// Ventanas que salen desde abajo: se cierran deslizándolas hacia abajo.
+(() => {
+  let d = null, y0 = 0, x0 = 0, dy = 0, t0 = 0, drag = null;
+  document.addEventListener('touchstart', e => {
+    d = e.target.closest('dialog.sheet[open]');
+    if (!d || d.scrollTop > 0 || e.target.closest('input, textarea, select, canvas, iframe')) { d = null; return; }
+    y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; t0 = e.timeStamp; dy = 0; drag = null;
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!d) return;
+    const my = e.touches[0].clientY - y0, mx = e.touches[0].clientX - x0;
+    if (drag === null && (Math.abs(my) > 6 || Math.abs(mx) > 6)) drag = my > Math.abs(mx);
+    if (!drag) return;
+    e.preventDefault();
+    dy = Math.max(0, my);
+    d.style.transition = 'none'; d.style.transform = `translate3d(0,${dy}px,0)`;
+  }, { passive: false });
+  document.addEventListener('touchend', e => {
+    if (!d || !drag) { d = null; return; }
+    const sheet = d; d = null;
+    const close = dy > 110 || (dy > 40 && dy / Math.max(1, e.timeStamp - t0) > 0.5);
+    sheet.style.transition = `transform .35s ${IOS_EASE}`;
+    sheet.style.transform = close ? 'translate3d(0,100%,0)' : '';
+    if (close) setTimeout(() => sheet.close(), 300);
+  });
+})();
 ['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault()));
 $('#settingsBtn').onclick = () => { location.hash = '#/settings'; };
 window.addEventListener('hashchange', route);
