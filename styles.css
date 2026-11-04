@@ -345,7 +345,7 @@ main { min-height: calc(100vh - 60px); background: var(--bg); }
 .report-actions button, .report-actions button.primary { background: #fff; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
 
 /* Fondo con dibujitos de herramientas (muy suave) */
-body, main { background: var(--bg) url(fondo.svg?v=39) 0 0 / 520px repeat; }
+body, main { background: var(--bg) url(fondo.svg?v=40) 0 0 / 520px repeat; }
 .topbar:has(#backBtn[hidden]) { background: var(--bar); }
 /* Lista de clientes con el mismo fondo que el buscador */
 .list { background: var(--fill); }
