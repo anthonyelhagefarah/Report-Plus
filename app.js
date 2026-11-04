@@ -166,7 +166,7 @@ function swipeRow(li, { del, send }) {
   li.className = 'swipe-wrap' + (front.classList.contains('irow') ? ' card-wrap' : '');
   const W = 92;
   li.insertAdjacentHTML('afterbegin', (send ? `<button class="swipe-act send" aria-label="${tr('Enviar')}"><span class="swipe-in">${ic('forward')}<small>${tr('Enviar')}</small></span></button>` : '')
-    + `<button class="swipe-act del" aria-label="${tr('Eliminar')}"><span class="swipe-in">${ic('trash')}<small>${tr('Eliminar')}</small></span></button>`);
+    + (del ? `<button class="swipe-act del" aria-label="${tr('Eliminar')}"><span class="swipe-in">${ic('trash')}<small>${tr('Eliminar')}</small></span></button>` : ''));
   li.appendChild(front);
   const actDel = li.querySelector('.swipe-act.del'), actSend = li.querySelector('.swipe-act.send');
   let x0, y0, t0, lastX, lastT, vx = 0, dx = 0, base = 0, drag = null, raf = 0;
@@ -202,6 +202,7 @@ function swipeRow(li, { del, send }) {
     if (e.timeStamp > lastT) { vx = 0.8 * ((cx - lastX) / (e.timeStamp - lastT)) + 0.2 * vx; lastX = cx; lastT = e.timeStamp; }
     let x = base + mx;
     if (!send && x > 0) x = x * 0.15; // sin acción a la derecha: solo un pequeño rebote
+    if (!del && x < 0) x = x * 0.15; // sin acción a la izquierda: solo un pequeño rebote
     dx = rubber(x);
     cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { paint(dx); if (actSend) actSend.classList.toggle('full', full()); });
   }, { passive: false });
@@ -212,13 +213,13 @@ function swipeRow(li, { del, send }) {
     // Un movimiento rápido también abre o cierra, aunque sea corto.
     const fling = Math.abs(vx) > 0.4 ? Math.sign(vx) : 0;
     let to = 0;
-    if (fling < 0 || (!fling && dx < -W / 2)) to = base > 0 ? 0 : -W;
+    if (fling < 0 || (!fling && dx < -W / 2)) to = base > 0 || !del ? 0 : -W;
     else if (fling > 0 || (!fling && dx > W / 2)) to = base < 0 ? 0 : (send ? W : 0);
     settle(to);
   });
   // Con la fila abierta, tocarla solo la cierra (no abre el reporte).
   front.addEventListener('click', e => { if (base) { e.preventDefault(); e.stopPropagation(); close(); } }, true);
-  actDel.onclick = async () => { close(); await del(); };
+  if (del) actDel.onclick = async () => { close(); await del(); };
   if (send) actSend.onclick = async () => {
     close(); toast(tr('Generando…'));
     try { await send(); } catch (e) { console.error(e); toast(tr('Error:') + ' ' + (e?.message || tr('inténtalo de nuevo')), 5000); }
@@ -560,7 +561,6 @@ async function viewHome(folderId) {
   view.querySelectorAll('#list li[data-report]').forEach(li => {
     const r = all.find(x => x.id === li.dataset.report);
     swipeRow(li, {
-      del: async () => { if (confirm(tr('¿Eliminar este reporte con todas sus fotos y videos?'))) { await DB.deleteReport(r.id); route(); } },
       send: () => sendReportPdf(r),
     });
   });
@@ -936,21 +936,6 @@ function bindSimpleReport(r, items) {
       for (const it of items.filter(i => i.entryId === e.id)) await DB.del('items', it.id);
       r.entries = r.entries.filter(x => x !== e); await DB.put('reports', r); route();
     }
-  });
-  view.querySelectorAll('.ilist > li').forEach(li => {
-    const eb = li.querySelector('[data-emenu]'), ib = li.querySelector('[data-imenu]');
-    swipeRow(li, { del: async () => {
-      if (eb) {
-        const e = r.entries.find(x => x.id === eb.dataset.emenu);
-        if (!confirm(tr('¿Eliminar esta ráfaga con todas sus fotos?'))) return;
-        for (const it of items.filter(i => i.entryId === e.id)) await DB.del('items', it.id);
-        r.entries = r.entries.filter(x => x !== e); await DB.put('reports', r);
-      } else if (ib) {
-        if (!confirm(tr('¿Eliminar este elemento?'))) return;
-        await DB.del('items', ib.dataset.imenu);
-      }
-      route();
-    } });
   });
   view.querySelectorAll('[data-imenu]').forEach(b => b.onclick = async () => {
     const it = items.find(x => x.id === b.dataset.imenu);
