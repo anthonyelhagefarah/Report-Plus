@@ -7,11 +7,6 @@
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", "Helvetica Neue", system-ui, sans-serif;
   color-scheme: light;
 }
-/* Opciones de color (se elige una) */
-:root[data-color="azul"] { --accent: #007aff; }
-:root[data-color="verde"] { --accent: #248a3d; }
-:root[data-color="indigo"] { --accent: #5856d6; }
-:root[data-color="grafito"] { --accent: #1c1c1e; --tint: rgba(118,118,128,.14); }
 * { box-sizing: border-box; }
 html, body { touch-action: pan-x pan-y; margin: 0; background: var(--bg); color: var(--text); font: 16px/1.35 var(--font); letter-spacing: -.01em; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; }
 body.noscroll { overflow: hidden; }
