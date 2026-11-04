@@ -1,6 +1,6 @@
 // Permite usar la app sin conexión (en obra o en campo).
 // Abre siempre al instante desde el teléfono y busca la versión nueva por detrás.
-const V = 40; // igual que ?v= en index.html
+const V = 41; // igual que ?v= en index.html
 const CACHE = 'reportplus-v' + V;
 const ASSETS = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
   'vendor/jspdf.umd.min.js', 'vendor/jszip.min.js', 'fondo.svg?v=40',
