@@ -342,3 +342,4 @@ main { min-height: calc(100vh - 60px); background: var(--bg); }
 .list small.inline-count { display: inline; margin-left: 8px; font-size: 15px; }
 .swipe-act.send.full .swipe-in { transform: scale(1.15) !important; }
 .swipe-act.send .swipe-in { transition: transform .2s; }
+.report-actions button, .report-actions button.primary { background: #fff; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent); }
