@@ -340,3 +340,5 @@ dialog.actions .i { width: 22px; height: 22px; }
 #offline { background: #1c1c1e; font-weight: 500; }
 main { min-height: calc(100vh - 60px); background: var(--bg); }
 .list small.inline-count { display: inline; margin-left: 8px; font-size: 15px; }
+.swipe-act.send.full .swipe-in { transform: scale(1.15) !important; }
+.swipe-act.send .swipe-in { transition: transform .2s; }

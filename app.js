@@ -171,7 +171,9 @@ function swipeRow(li, { del, send }) {
   const actDel = li.querySelector('.swipe-act.del'), actSend = li.querySelector('.swipe-act.send');
   let x0, y0, t0, lastX, lastT, vx = 0, dx = 0, base = 0, drag = null, raf = 0;
   // Resistencia elástica al pasar del ancho del botón, como en el iPhone.
-  const rubber = x => { const a = Math.abs(x); return a <= W ? x : Math.sign(x) * (W + (a - W) * 0.35); };
+  const rubber = x => { const a = Math.abs(x); return a <= W || (send && x > 0) ? x : Math.sign(x) * (W + (a - W) * 0.35); };
+  // Arrastrar hasta más de la mitad hacia la derecha envía directo, sin tocar el botón (como en el iPhone).
+  const full = () => send && dx > front.offsetWidth * 0.5;
   const paint = (x, anim) => {
     const ease = anim ? 'transform .45s cubic-bezier(.2,.9,.25,1)' : 'none';
     front.style.transition = ease; front.style.transform = `translate3d(${x}px,0,0)`;
@@ -201,11 +203,12 @@ function swipeRow(li, { del, send }) {
     let x = base + mx;
     if (!send && x > 0) x = x * 0.15; // sin acción a la derecha: solo un pequeño rebote
     dx = rubber(x);
-    cancelAnimationFrame(raf); raf = requestAnimationFrame(() => paint(dx));
+    cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { paint(dx); if (actSend) actSend.classList.toggle('full', full()); });
   }, { passive: false });
   front.addEventListener('touchend', () => {
     if (!drag) return;
     cancelAnimationFrame(raf);
+    if (full()) { actSend.classList.remove('full'); paint(front.offsetWidth, true); setTimeout(() => actSend.onclick(), 250); return; }
     // Un movimiento rápido también abre o cierra, aunque sea corto.
     const fling = Math.abs(vx) > 0.4 ? Math.sign(vx) : 0;
     let to = 0;
