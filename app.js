@@ -1210,14 +1210,15 @@ function pageSlide() {
 }
 
 // Deslizar la pantalla de izquierda a derecha (desde cualquier parte) para volver atrás, como en el iPhone.
-// No se activa sobre filas que se deslizan, campos de texto, el mapa, videos ni fotos grandes.
+// No se activa sobre filas que se deslizan, el campo donde estás escribiendo, el mapa ni videos.
 (() => {
   let x0 = 0, y0 = 0, dx = 0, t0 = 0, on = false, drag = null;
   window.addEventListener('touchstart', e => {
     const t = e.touches[0];
     on = e.touches.length === 1 && setHeader.back && !$('#backBtn').hidden
       && !document.querySelector('dialog[open], .annot, .camera, .viewer')
-      && !e.target.closest('.swipe-wrap, input, textarea, select, canvas, iframe, video, .media');
+      && !e.target.closest('.swipe-wrap, select, canvas, iframe, video')
+      && !(e.target.closest('input, textarea') && e.target.closest('input, textarea') === document.activeElement);
     if (!on) return;
     x0 = t.clientX; y0 = t.clientY; t0 = e.timeStamp; dx = 0; drag = null;
   }, { capture: true, passive: true });
